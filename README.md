@@ -1,12 +1,16 @@
 # Policy Contrastive Decoding
 
+<<<<<<< HEAD
 Official implementation of the paper [Policy Contrastive Decoding]().
+=======
+Official implementation of the paper "[Policy Contrastive Decoding](https://arxiv.org/abs/2505.13255)".
+>>>>>>> 6203ca3 (update)
 
 Note: We are doing our best to improve this work. If you have any questions or suggestions, please feel free to create an issue in this repo or contact us at shihan.wu.koorye@outlook.com.
 
 ## News
 
-- [2025/5/15] The code is released.
+- [2025/5/20] The code is released.
 
 ## Introduction
 
@@ -38,9 +42,20 @@ Note: We are doing our best to improve this work. If you have any questions or s
 
 ### Videos
 
-<center class="half">
+<!-- <center class="half">
     <img src="examples/videos/pick_coke_can.gif" alt="Pick Coke Can" width="20%"/><img src="examples/videos/move_near.gif" alt="Move Near" width="20%"/><img src="examples/videos/carrot_plate.gif" alt="Carrot Plate" width="20%"/><img src="examples/videos/stack_cube.gif" alt="Stack Cube" width="20%"/>
-</center>
+</center> -->
+
+#### Simpler
+
+**Baseline**
+
+
+**+PCD**
+
+| Pick Coke Can | Move Near | Carrot Plate | Stack Cube |
+| :-----------: | :-------: | :---------: | :-------: |
+| ![Pick Coke Can](examples/videos/pick_coke_can.gif) | ![Move Near](examples/videos/move_near.gif) | ![Carrot Plate](examples/videos/carrot_plate.gif) | ![Stack Cube](examples/videos/stack_cube.gif) |
 
 ## Running
 
