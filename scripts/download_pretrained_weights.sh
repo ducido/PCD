@@ -1,15 +1,16 @@
-cd pretrained
+mkdir pretrained
+cd pretrained/
 
 # grounded sam 2
 if [ ! -f "sam2.1_hiera_large.pt" ]; then
     wget "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
 fi
-if [ ! -f "groundingdino_swinb_cogcoor.pth" ]; then
-    wget "https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth"
-fi
 
-# sed
+# sed (optional)
 # PLEASE download 'sed_model_large.pth' from the google drive: https://drive.google.com/file/d/1zAXE0QXy47n0cVn7j_2cSR85eqxdDGg8/view?usp=drive_link
+
+# yolo world (optional)
+# wget https://huggingface.co/wondervictor/YOLO-World-V2.1/resolve/main/l_stage1-7d280586.pth
 
 # inpaint_anything
 # PLEASE download 'big-lama' from the google drive: https://drive.google.com/drive/folders/1ST0aRbDRZGli0r7OVVOQvXwtadMCuWXg?usp=sharing
@@ -52,14 +53,4 @@ if [ ! -d "openvla-7b" ]; then
     ln -s ${huggingface_cache_dir}"/models--openvla--openvla-7b/snapshots/31f090d05236101ebfc381b61c674dd4746d4ce0" ${current_dir}"/openvla-7b"
 fi
 
-# rdt
-huggingface-cli download "robotics-diffusion-transformer/rdt-1b"
-if [ ! -d "rdt-1b" ]; then
-    ln -s ${huggingface_cache_dir}"/models--robotics-diffusion-transformer--rdt-1b/snapshots/eb09036cc64ca4945051acbd1bd581d30a1d7711" ${current_dir}"/rdt-1b"
-fi
-
-# t5-xxl
-huggingface-cli download "google/t5-v1_1-xxl"
-if [ ! -d "t5-v1_1-xxl" ]; then
-    ln -s ${huggingface_cache_dir}"/models--google--t5-v1_1-xxl/snapshots/3db67ab1af984cf10548a73467f0e5bca2aaaeb2" ${current_dir}"/t5-v1_1-xxl"
-fi
+cd ..

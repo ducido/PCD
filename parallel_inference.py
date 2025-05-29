@@ -424,8 +424,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--num-gpus", type=int, default=0)
-    parser.add_argument("--policy", default="cogact")
-    parser.add_argument("--checkpoint", type=str, default="pretrained/cogact-base")
+    parser.add_argument("--policy", default="openvla")
+    parser.add_argument("--checkpoint", type=str, default="pretrained/openvla-7b")
     parser.add_argument("--task", default="google_robot_pick_coke_can")
     parser.add_argument("--result-root", type=str, default="./results")
     parser.add_argument("--n-trajs", type=int, default=100)

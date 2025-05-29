@@ -1,4 +1,6 @@
-num_gpus=6
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+
+num_gpus=8
 result_root="./results/default/baseline"
 
 policies=("octo")
@@ -12,6 +14,7 @@ tasks=(
     "widowx_spoon_on_towel"
     "widowx_carrot_on_plate"
     "widowx_stack_cube"
+    "google_robot_place_apple_in_closed_top_drawer"
 )
 
 for i in "${!policies[@]}"; do

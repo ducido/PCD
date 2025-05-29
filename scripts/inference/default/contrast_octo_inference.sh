@@ -1,13 +1,10 @@
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
-num_gpus=7
+num_gpus=8
 n_trajs=100
 result_root="./results/default/contrast"
 
-# search_opts="by gt alpha 0.2 num_repeats 32"
-# search_opts="by point_tracking alpha 0.4 num_repeats 32"
-# search_opts="by point_tracking,box_tracking,sed_tracking alpha 0.2 num_repeats 24"
-search_opts="by sed_tracking alpha 1.0 num_repeats 24"
+search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 1.0"
 
 policies=("octo")
 checkpoints=("pretrained/octo-base")
@@ -21,6 +18,7 @@ tasks=(
     "widowx_spoon_on_towel"
     "widowx_put_eggplant_in_basket"
     "widowx_stack_cube"
+    "google_robot_place_apple_in_closed_top_drawer"
 )
 
 for i in "${!policies[@]}"; do

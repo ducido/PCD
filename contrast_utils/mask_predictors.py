@@ -4,9 +4,6 @@ import numpy as np
 import os
 import torch
 from PIL import Image
-from detectron2.config import get_cfg
-from detectron2.projects.deeplab import add_deeplab_config
-from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection 
 
 from .utils import *
 
@@ -23,7 +20,6 @@ _NAME_TO_ALIAS_GDINO = {
     'redbull can': 'redbull pop can',
     'coke can': 'coke pop can',
     'pepsi can': 'pepsi pop can',
-    # 'blue plastic bottle': 'blue plastic bottle with label',
     'sponge': 'green sponge',
     'plate larger': 'plate',
     'table cloth shorter': 'blue towel cloth',
@@ -56,10 +52,10 @@ _NAME_TO_ALIAS_SED = {
     'table cloth shorter': 'blue towel cloth',
 }
 
-_SAM2_MODEL_CFG = os.path.join(os.path.dirname(__file__), 'grounded_sam_2', 'sam2', 'configs', 'sam2.1', 'sam2.1_hiera_l.yaml')
-_SAM2_CHECKPOINT = os.path.join(os.path.dirname(__file__), '..', 'pretrained', 'sam2.1_hiera_large.pth')
+_SAM2_MODEL_CFG = os.path.join('configs', 'sam2.1', 'sam2.1_hiera_l.yaml')
+_SAM2_CHECKPOINT = os.path.join(os.path.dirname(__file__), '..', 'pretrained', 'sam2.1_hiera_large.pt')
 
-_YOLO_WORLD_CFG = os.path.join(os.path.dirname(__file__), 'yolo_world', 'configs', 'pretrain', 'yolo_world_v2_l_vlpan_bn_2e-3_100e_4x8gpus_obj365v1_goldg_train_lvis_minival.py')
+_YOLO_WORLD_CFG = os.path.join(os.path.dirname(__file__), '..', 'third_party', 'yolo_world', 'configs', 'pretrain', 'yolo_world_v2_l_vlpan_bn_2e-3_100e_4x8gpus_obj365v1_goldg_train_lvis_minival.py')
 _YOLO_WORLD_CHECKPOINT = os.path.join(os.path.dirname(__file__), '..', 'pretrained', 'l_stage1-7d280586.pth')
 
 _GROUNDING_DINO_CHECKPOINT = os.path.join(os.path.dirname(__file__), '..', 'pretrained', 'grounding-dino-base')
@@ -95,8 +91,9 @@ def postprocess_mask(mask):
 
 class GroundedSAMPredictor:
     def __init__(self):
-        from .grounded_sam_2.sam2.build_sam import build_sam2
-        from .grounded_sam_2.sam2.sam2_image_predictor import SAM2ImagePredictor
+        from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection 
+        from sam2.build_sam import build_sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
         
         sam2_image_model = build_sam2(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT)
         self.image_predictor = SAM2ImagePredictor(sam2_image_model)
@@ -160,10 +157,12 @@ class GroundedSAMPredictor:
 
 class SEDPredictor:
     def __init__(self):
-        from .grounded_sam_2.sam2.build_sam import build_sam2
-        from .grounded_sam_2.sam2.sam2_image_predictor import SAM2ImagePredictor
-        from .SED.demo.predictor import VisualizationDemo as SEDDemo
-        from .SED.sed import add_sed_config
+        from detectron2.config import get_cfg
+        from detectron2.projects.deeplab import add_deeplab_config
+        from sam2.build_sam import build_sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
+        from ..third_party.SED.demo.predictor import VisualizationDemo as SEDDemo
+        from ..third_party.SED.sed import add_sed_config
 
         with open('contrast_utils/SED/datasets/simpler.json', 'w') as f:
             self.classnames = [_NAME_TO_ALIAS_SED.get(name, name) for name in _CLASSNAMES] + _BACKGROUND_CLASSNAMES
@@ -231,13 +230,11 @@ class YoloWorldPredictor:
         test_pipeline_cfg[0].type = 'mmdet.LoadImageFromNDArray'
         self.test_pipeline = Compose(test_pipeline_cfg)
         
-        from contrast_utils.grounded_sam_2.sam2.build_sam import build_sam2_video_predictor, build_sam2
-        from contrast_utils.grounded_sam_2.sam2.sam2_image_predictor import SAM2ImagePredictor
+        from sam2.build_sam import build_sam2_video_predictor, build_sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
 
-        sam2_checkpoint = _SAM2_CHECKPOINT
-        model_cfg = _SAM2_MODEL_CFG
-        self.video_predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
-        sam2_image_model = build_sam2(model_cfg, sam2_checkpoint, device='cpu')
+        self.video_predictor = build_sam2_video_predictor(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT)
+        sam2_image_model = build_sam2(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT, device='cpu')
         self.image_predictor = SAM2ImagePredictor(sam2_image_model)
     
     @torch.no_grad()
@@ -314,8 +311,8 @@ class YoloWorldPredictor:
 
 class VisualPromptPredictor:
     def __init__(self):
-        from .grounded_sam_2.sam2.build_sam import build_sam2
-        from .grounded_sam_2.sam2.sam2_image_predictor import SAM2ImagePredictor
+        from sam2.build_sam import build_sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
 
         sam2_image_model = build_sam2(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT)
         self.image_predictor = SAM2ImagePredictor(sam2_image_model)
@@ -364,7 +361,7 @@ class VisualPromptPredictor:
 
 class TrackingPredictor:
     def __init__(self, predictor):
-        from .grounded_sam_2.sam2.build_sam import build_sam2_video_predictor
+        from sam2.build_sam import build_sam2_video_predictor
 
         self.predictor = predictor
         self.video_predictor = build_sam2_video_predictor(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT)
@@ -450,7 +447,7 @@ class TrackingPredictor:
 
 class TrackingPredictorV2:
     def __init__(self, predictor):
-        from .grounded_sam_2.sam2.build_sam import build_sam2_camera_predictor
+        from sam2.build_sam import build_sam2_camera_predictor
         self.predictor = predictor
         self.video_predictor = build_sam2_camera_predictor(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT)
         self.start_tracking = False
@@ -483,7 +480,7 @@ class TrackingPredictorV2:
         return masks
     
     def reset(self):
-        from .grounded_sam_2.sam2.build_sam import build_sam2_camera_predictor
+        from sam2.build_sam import build_sam2_camera_predictor
         self.video_predictor.to('cpu')
         del self.video_predictor
         self.video_predictor = build_sam2_camera_predictor(_SAM2_MODEL_CFG, _SAM2_CHECKPOINT)

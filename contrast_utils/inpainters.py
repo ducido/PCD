@@ -6,7 +6,7 @@ import yaml
 from omegaconf import OmegaConf
 
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), 'inpaint_anything', 'lama'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'third_party', 'inpaint_anything', 'lama'))
 from saicinpainting.training.trainers import load_checkpoint
 from saicinpainting.evaluation.utils import move_to_device
 from saicinpainting.evaluation.data import pad_tensor_to_modulo
@@ -14,7 +14,7 @@ from saicinpainting.evaluation.data import pad_tensor_to_modulo
 from .utils import dilate_mask
 
 
-_LAMA_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'inpaint_anything', 'lama', 'configs', 'prediction', 'default.yaml')
+_LAMA_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'third_party', 'inpaint_anything', 'lama', 'configs', 'prediction', 'default.yaml')
 _LAMA_CKPT_PATH = os.path.join(os.path.dirname(__file__), '..', 'pretrained', 'big-lama')
 
 _DILATE_SIZE = 5

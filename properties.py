@@ -1,12 +1,3 @@
-import torch
-import yaml
-
-
-# rdt_config_path = 'simpler_env/policies/rdt/configs/base.yaml'
-# with open(rdt_config_path, "r") as fp:
-#     rdt_config = yaml.safe_load(fp)
-
-
 RT1_CONFIG = dict(
     saved_model_path="pretrained/rt_1_x",
     lang_embed_model_path="https://tfhub.dev/google/universal-sentence-encoder-large/5",
@@ -41,33 +32,6 @@ OPENVLA_CONFIG = dict(
     action_scale=1.0,
 )
 
-# RDT_POLICY_CONFIG = dict(
-#     args=rdt_config, 
-#     dtype=torch.bfloat16,
-#     # pretrained_text_encoder_name_or_path=None,
-#     pretrained_text_encoder_name_or_path='pretrained/t5-v1_1-xxl',
-#     pretrained_vision_encoder_name_or_path='pretrained/siglip-so400m-patch14-384',
-# )
-
-# COGACT_CONFIG = dict(
-#     saved_model_path='CogACT/CogACT-Base',
-#     unnorm_key=None,
-#     policy_setup="widowx_bridge",
-#     horizon=0,
-#     action_ensemble_horizon=None,
-#     image_size=[224, 224],
-#     future_action_window_size=15,
-#     action_dim=7,
-#     action_model_type="DiT-B",
-#     action_scale=1.0,
-#     cfg_scale=1.5,
-#     use_ddim=True,
-#     num_ddim_steps=10,
-#     use_bf16=True,
-#     action_ensemble=True,
-#     adaptive_ensemble_alpha=0.1,
-# )
-
 OPEN_PIZERO_CONFIG = dict(
     cfg_dir='open_pi_zero/config/eval',
     use_ddp=False,
@@ -96,19 +60,6 @@ CONTRAST_OPENVLA_CONFIG = dict(
     alpha=0.2,
 )
 
-# CONTRAST_COGACT_CONFIG = dict(
-#     alpha=0.1,
-#     num_repeats=64,
-#     bandwidth_factor=1.0,
-# )
-
-# CONTRAST_OPEN_PIZERO_CONFIG = dict(
-#     alpha=0.3,
-#     bandwidth_factor=1.0,
-#     num_repeats=16,
-#     keep_threshold=0.5,
-# )
-
 CONTRAST_OPEN_PIZERO_CONFIG = dict(
     alpha=0.2,
     num_repeats=20,
@@ -125,12 +76,6 @@ def get_policy_config(policy, checkpoint, task, opts, contrast):
         config['model_type'] = checkpoint
     elif policy == 'openvla':
         config = OPENVLA_CONFIG
-        config['saved_model_path'] = checkpoint
-    elif policy == 'rdt':
-        config = RDT_POLICY_CONFIG
-        pretrained = checkpoint
-    elif policy == 'cogact':
-        config = COGACT_CONFIG
         config['saved_model_path'] = checkpoint
     elif policy == 'pizero':
         config = OPEN_PIZERO_CONFIG

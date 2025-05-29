@@ -2,9 +2,7 @@ num_gpus=8
 n_trajs=100
 result_root="./results/default/contrast"
 
-# search_opts="by gt get_all_parts True alpha 0.2,0.3 num_repeats 16,20,24"
-# search_opts="by point_tracking alpha 0.8,1.0 num_repeats 24"
-search_opts="by yolo_world_tracking alpha 0.2 num_repeats 24"
+search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")

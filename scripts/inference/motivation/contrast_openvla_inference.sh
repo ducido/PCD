@@ -1,4 +1,4 @@
-num_gpus=7
+num_gpus=8
 n_trajs=100
 result_root="./results/motivation/contrast"
 
@@ -7,17 +7,12 @@ checkpoints=("pretrained/openvla-7b")
 search_opts="by point_tracking alpha 0.8"
 
 tasks=(
-    # "google_robot_pick_coke_can_bright"
-    # "google_robot_pick_coke_can_dark"
-    # "google_robot_pick_coke_can_drawer_variant"
+    "google_robot_pick_coke_can_dark"
+    "google_robot_pick_coke_can_drawer_variant"
     "google_robot_pick_coke_can_light_variant"
-    # "google_robot_pick_coke_can_table_red_variant"
-    # "google_robot_pick_coke_can_table_blue_variant"
-    # "google_robot_pick_coke_can_table_gray_variant"
-    # "google_robot_pick_coke_can_table_paper_variant"
-    # "google_robot_pick_coke_can_table_stone_variant"
-    # "google_robot_pick_coke_can_table_stone2_variant"
-    # "google_robot_pick_coke_can_table_stone3_variant"
+    "google_robot_pick_coke_can_table_paper_variant"
+    "google_robot_pick_coke_can_table_stone_variant"
+    "google_robot_pick_coke_can_table_stone2_variant"
 )
 
 for i in "${!policies[@]}"; do

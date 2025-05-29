@@ -87,10 +87,18 @@ conda activate pcd
 bash scripts/install_dependencies.sh
 ```
 
-3. Running evaluation on simpler.
+3. Download model checkpoints.
+
+> **Notice**: Some of the checkpoints cannot be downloaded directly, you may need to download them manually from the links provided in the script.
 
 ```bash
-bash scripts/default/run.sh
+bash scripts/download_pretrained_weights.sh
+```
+
+3. Run evaluation on simpler.
+
+```bash
+bash scripts/default/inference/run.sh
 ```
 
 ## Acknowledgements

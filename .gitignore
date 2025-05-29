@@ -1,14 +1,14 @@
-scripts/pcd_real_world/*
-scripts/pcd_real_world_unseen/*
-scripts/real_world_bak/*
-results/*
-results_bak/*
-results_ft/*
-pretrained/*
-visualize/*
-visualization/*
-dataset/*
-segmentation_results/*
+scripts/pcd_real_world/
+scripts/pcd_real_world_unseen/
+scripts/real_world_bak/
+results/
+results_bak/
+results_ft/
+pretrained/
+visualize/
+visualization/
+dataset/
+segmentation_results/
 *plot_simpler*
 *.mp4
 
