@@ -1,6 +1,14 @@
 # Policy Contrastive Decoding for Robotic Foundation Models
 
-Official implementation of the paper "Policy Contrastive Decoding for Robotic Foundation Models".
+Official implementation of the paper "[Policy Contrastive Decoding for Robotic Foundation Models](https://arxiv.org/abs/2505.13255)".
+
+> Note: We are doing our best to improve this work. If you have any questions or suggestions, please feel free to create an issue in this repo or contact us at shihan.wu.koorye@outlook.com.
+
+[[Project]](https://koorye.github.io/proj/PCD) [[ArXiv]](https://arxiv.org/abs/2505.13255) [[PDF]](https://arxiv.org/pdf/2505.13255)
+
+# News
+- 🔥**May 23, 2025**: Our paper has been updated for better clarity and readability. The optimized version is now available on arXiv.
+- 🔥**May 20, 2025**: The code is released and the paper is now available on arXiv.
 
 ## Introduction
 
