@@ -36,7 +36,7 @@ Official implementation of the paper "[Policy Contrastive Decoding for Robotic F
 
 ### Real-world Environments
 
-> **Note**: The relevant code of the real-world experiments is available in the [PCD-real](https://github.com/Koorye/PCD-real).
+> **Note**: The relevant code of the real-world experiments is available in [PCD-real](https://github.com/Koorye/PCD-real).
 
 **Baseline**
 
