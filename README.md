@@ -7,7 +7,7 @@ Official implementation of the paper "[Policy Contrastive Decoding for Robotic F
 [[Project]](https://koorye.github.io/proj/PCD) [[ArXiv]](https://arxiv.org/abs/2505.13255) [[PDF]](https://arxiv.org/pdf/2505.13255) [[PCD-real]](https://github.com/Koorye/PCD-real)
 
 ## News
-- 🔥**May 23, 2025**: Our paper has been updated for better clarity and readability. The optimized version is now available on [arXiv](https://arxiv.org/abs/2505.13255).
+- 🔥**Oct 13, 2025**: Our paper has been updated for better clarity and readability. The optimized version is now available on [arXiv](https://arxiv.org/abs/2505.13255).
 - 🔥**May 20, 2025**: The code is released and the paper is now available on [arXiv](https://arxiv.org/abs/2505.13255v1).
 
 ## Introduction
