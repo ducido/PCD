@@ -1,8 +1,12 @@
-num_gpus=8
-n_trajs=100
-result_root="./results/default/contrast"
+BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
+export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
+num_gpus=4
+n_trajs=100
+result_root="./results_4gpu/default/contrast"
+
+# search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")

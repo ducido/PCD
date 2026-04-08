@@ -12,6 +12,11 @@ from open_pi_zero.src.agent.env_adapter.base import BaseEnvAdapter
 from open_pi_zero.src.model.vla.processing import VLAProcessor
 from open_pi_zero.src.utils.geometry import euler2axangle, mat2euler, quat2mat
 
+import os.path as osp
+import sys
+sys.path.append(osp.dirname(__file__))
+
+
 
 class SimplerAdapter(BaseEnvAdapter):
     def __init__(
@@ -33,6 +38,7 @@ class SimplerAdapter(BaseEnvAdapter):
         assert proprio_normalization_type in ["bound", "gaussian"]
 
         # for normalization
+        dataset_statistics_path='/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero/open_pi_zero/config/fractal_statistics.json'
         with tf.io.gfile.GFile(dataset_statistics_path, "r") as f:
             self.dataset_statistics = json.load(f)
 

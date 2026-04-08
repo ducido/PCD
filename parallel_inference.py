@@ -72,6 +72,7 @@ class ParallelRunner:
             return
         self._build_logger()
         gpu_id = self._check_free_gpus()[0]
+        # gpu_id = 0
         episodes = range(self.n_trajs)
         infos = self.run_episodes(gpu_id, episodes, show_detail=True)
         info = stat_info(infos)
@@ -330,7 +331,8 @@ class ParallelRunner:
         """ Check free GPUs. """
         used_memorys = os.popen(f"nvidia-smi --query-gpu=memory.used --format=csv,nounits,noheader").readlines()
         used_memorys = [int(memory.strip()) for memory in used_memorys]
-        return [i for i, memory in enumerate(used_memorys) if memory < 1000]
+        # return [i for i, memory in enumerate(used_memorys) if memory < 1000]
+        return [i for i, memory in enumerate(used_memorys)]
     
     def _set_result_dir(self):
         # model_name = '/'.join(self.checkpoint.replace('\\', '/').split('/')[1:])

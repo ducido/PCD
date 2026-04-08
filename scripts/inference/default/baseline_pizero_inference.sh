@@ -1,5 +1,8 @@
-num_gpus=8
-result_root="./results/default/baseline"
+BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
+export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
+
+num_gpus=4
+result_root="./results_4gpu/default/baseline"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
@@ -14,6 +17,8 @@ tasks=(
     "widowx_stack_cube"
     "google_robot_place_apple_in_closed_top_drawer"
 )
+
+# /projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero/open_pi_zero/config/eval/fractal.yaml
 
 for i in "${!policies[@]}"; do
     for task in "${tasks[@]}"; do

@@ -5,6 +5,7 @@ from omegaconf import OmegaConf
 
 import sys
 sys.path.append(osp.join(osp.dirname(__file__), 'open_pi_zero'))
+sys.path.append(osp.dirname(__file__))
 from src.model.vla.pizero import PiZero
 
 from .. import setup_torch_seed

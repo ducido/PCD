@@ -33,7 +33,7 @@ OPENVLA_CONFIG = dict(
 )
 
 OPEN_PIZERO_CONFIG = dict(
-    cfg_dir='open_pi_zero/config/eval',
+    cfg_dir='simpler_env/policies/pizero/open_pi_zero/config/eval',
     use_ddp=False,
     use_naive=False,
     use_torch_compile=True,
