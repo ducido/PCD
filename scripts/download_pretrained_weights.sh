@@ -1,6 +1,8 @@
 mkdir pretrained
 cd pretrained/
 
+source .venv/bin/activate
+
 # grounded sam 2
 if [ ! -f "sam2.1_hiera_large.pt" ]; then
     wget "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
@@ -16,7 +18,7 @@ fi
 # PLEASE download 'big-lama' from the google drive: https://drive.google.com/drive/folders/1ST0aRbDRZGli0r7OVVOQvXwtadMCuWXg?usp=sharing
 
 # install huggingface-cli
-pip install huggingface_hub
+uv pip install huggingface_hub
 
 current_dir=$(pwd)
 cd ~/.cache/huggingface/hub
@@ -24,10 +26,10 @@ huggingface_cache_dir=$(pwd)
 cd $current_dir
 
 # siglip
-huggingface-cli download "google/siglip-so400m-patch14-384"
-if [ ! -d "siglip-so400m-patch14-384" ]; then
-    ln -s ${huggingface_cache_dir}"/models--google--siglip-so400m-patch14-384/snapshots/9fdffc58afc957d1a03a25b10dba0329ab15c2a3/" ${current_dir}"/siglip-so400m-patch14-384"
-fi
+# huggingface-cli download "google/siglip-so400m-patch14-384"
+# if [ ! -d "siglip-so400m-patch14-384" ]; then
+#     ln -s ${huggingface_cache_dir}"/models--google--siglip-so400m-patch14-384/snapshots/9fdffc58afc957d1a03a25b10dba0329ab15c2a3/" ${current_dir}"/siglip-so400m-patch14-384"
+# fi
 
 # t5-base
 huggingface-cli download "google-t5/t5-base"

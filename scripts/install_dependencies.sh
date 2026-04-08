@@ -19,6 +19,7 @@ uv pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url ht
 # pip install https://github.com/MiroPsota/torch_packages_builder/releases/download/detectron2-0.6%2B2a420ed/detectron2-0.6%2B2a420edpt2.0.0cu118-cp310-cp310-linux_x86_64.whl
 
 # install maniskill env
+uv pip install ruckig --only-binary=:all:
 cd third_party/ManiSkill2_real2sim
 uv pip install -e .
 cd ..
