@@ -10,10 +10,12 @@ class PiZeroContrastInference(PiZeroInference):
                  num_repeats=64,
                  bandwidth_factor=1.0,
                  keep_threshold=0.5,
+                 ag_weight=0.5,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
         self.num_repeats = num_repeats
+        self.ag_weight = ag_weight
         self.contrast_decoding = ContrastDecoding(alpha, bandwidth_factor, keep_threshold, 'torch')
 
         # set to None to disable clipping in infer_action function
@@ -41,6 +43,38 @@ class PiZeroContrastInference(PiZeroInference):
         actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
         return raw_actions, actions, {}
 
+    @torch.no_grad()
+    def auto_guidance_step(self, image, contrast_image, instruction, proprio):
+        inputs = self.preprocess_inputs(image, instruction, proprio)
+        contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
+       
+        # actions = self.forward_actions(inputs)
+        # contrast_actions = self.forward_actions(contrast_inputs)
+
+        '''
+        input_ids torch.Size([1, 276])
+        pixel_values torch.Size([1, 3, 224, 224])
+        vlm_position_ids torch.Size([1, 276])
+        proprio_position_ids torch.Size([1, 1])
+        action_position_ids torch.Size([1, 4])
+        proprios torch.Size([1, 1, 8])
+        image_text_proprio_mask torch.Size([1, 1, 277, 277])
+        action_mask torch.Size([1, 1, 4, 281])
+        '''
+ 
+        all_inputs = {}
+        for k in inputs:
+            all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
+        all_actions = self.auto_guidance_forward_actions(all_inputs) # 2*num_repeats, 4, 7
+        actions, contrast_actions = torch.chunk(all_actions, 2, dim=0) # num_repeats, 4, 7
+        raw_actions = self.contrast_decoding(actions, contrast_actions) # 1, 4, 7
+
+        if self.clip_value is not None:
+            raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
+        
+        actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
+        return raw_actions, actions, {}
+
     def forward_actions(self, inputs):
         inputs.update({'num_repeats': self.num_repeats})
         with torch.inference_mode():
@@ -48,4 +82,15 @@ class PiZeroContrastInference(PiZeroInference):
                 actions = self.model.infer_actions_naive(**inputs)
             else:
                 actions = self.model.infer_actions(**inputs)
+        return actions
+
+    def auto_guidance_forward_actions(self, inputs):
+        inputs.update({'num_repeats': self.num_repeats})
+        inputs.update({'ag_weight': self.ag_weight})
+        with torch.inference_mode():
+            if self.use_naive:
+                actions = self.model.infer_actions_naive(**inputs)
+                breakpoint()
+            else:
+                actions = self.model.auto_guidance_infer_actions(**inputs)
         return actions
