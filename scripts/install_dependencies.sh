@@ -54,4 +54,7 @@ uv pip install -r requirements_full_install.txt
 # reforce the installation of the following packages
 uv pip install timm==0.9.10 accelerate==1.1.1
 uv pip install "jax[cuda11_pip]==0.4.20" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-uv pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu118
+# uv pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu118
+uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+uv pip install bitsandbytes
+uv pip install --upgrade hydra-core

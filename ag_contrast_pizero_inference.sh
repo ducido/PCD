@@ -5,7 +5,8 @@ module load ffmpeg/7.0.2
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 
-BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
+# BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
+BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
 num_gpus=4
