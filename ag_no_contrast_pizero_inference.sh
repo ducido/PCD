@@ -10,10 +10,10 @@ export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
 num_gpus=1
 n_trajs=100
-result_root="./results_4gpu/default/ag_no_cc"
+result_root="./results_4gpu/default/ag_no_contrast"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24 ag_weight 0.5"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 1 ag_weight 0.5"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
