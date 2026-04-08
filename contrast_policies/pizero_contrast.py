@@ -44,7 +44,7 @@ class PiZeroContrastInference(PiZeroInference):
         return raw_actions, actions, {}
 
     @torch.no_grad()
-    def auto_guidance_step(self, image, contrast_image, instruction, proprio):
+    def ag_contrast_step(self, image, contrast_image, instruction, proprio):
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
        

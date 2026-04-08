@@ -45,6 +45,8 @@ class ParallelRunner:
                  result_root='./results',
                  n_trajs=100,
                  contrast=False,
+                 ag=False,
+                 ag_no_cd=False,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -53,6 +55,8 @@ class ParallelRunner:
         self.result_root = result_root
         self.n_trajs = n_trajs
         self.contrast = contrast
+        self.ag = ag
+        self.ag_no_cd = ag_no_cd
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -204,9 +208,19 @@ class ParallelRunner:
             # get action from policy
             # only pi-0 use proprio
             if not self.contrast:
+                self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                raw_action, actions, aux_info = policy.auto_guidance_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                if self.ag and self.ag_no_cd:
+                    self.logger.info("Using AutoGuidance without CD")
+                    raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.ag:
+                    self.logger.info("Using AutoGuidance with CD")
+                    raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                else:
+                    self.logger.info("Using only CD")
+                    raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+
 
             if not isinstance(actions, list):
                 actions = [actions]
@@ -293,8 +307,7 @@ class ParallelRunner:
     def _build_policy(self, show_detail=False):
         """ Build policy model. """
         from properties import get_policy_config
-        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast)
-        
+        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag)
         if show_detail:
             self.logger.infos("Policy Config", config)
 
@@ -410,6 +423,8 @@ def main(args):
                                       result_root=args.result_root,
                                       n_trajs=args.n_trajs,
                                       contrast=args.contrast,
+                                      ag=args.ag,
+                                      ag_no_cd=args.ag_no_cd,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -419,6 +434,8 @@ def main(args):
                                 result_root=args.result_root,
                                 n_trajs=args.n_trajs,
                                 contrast=args.contrast,
+                                ag=args.ag,
+                                ag_no_cd=args.ag_no_cd,
                                 opts=args.opts)
     runner.run()
 
@@ -432,6 +449,8 @@ if __name__ == '__main__':
     parser.add_argument("--result-root", type=str, default="./results")
     parser.add_argument("--n-trajs", type=int, default=100)
     parser.add_argument("--contrast", action="store_true")
+    parser.add_argument("--ag", action="store_true")
+    parser.add_argument("--ag-no-cd", action="store_true")
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()

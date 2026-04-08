@@ -647,10 +647,9 @@ class PiZero(nn.Module, NoSyncBase):
             action_vel = self.action_decoder(action_embeds)
 
             ori_action_vel, contrast_action_vel = torch.chunk(action_vel, 2, dim=0)
+            # print(ag_weight)
             ag_action_vel = ori_action_vel + ag_weight * (ori_action_vel - contrast_action_vel)
-            print(ag_action_vel.shape)
             action_vel = torch.cat([ag_action_vel, contrast_action_vel], dim=0)
-            print(action_vel.shape)
             action += delta_t * action_vel
             t += delta_t
 

@@ -8,19 +8,19 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=1
-n_trajs=1
-result_root="./results_debug/default/contrast"
+num_gpus=4
+n_trajs=100
+result_root="./results_4gpu/default/ag_contrast"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24 ag_weight 0"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
 
 tasks=(
-    "google_robot_pick_coke_can"
-    # "google_robot_move_near"
+    # "google_robot_pick_coke_can"
+    "google_robot_move_near"
     # "google_robot_close_drawer"
     # "google_robot_open_drawer"
     # "widowx_carrot_on_plate"
@@ -37,6 +37,7 @@ for i in "${!policies[@]}"; do
 
         python ag_parallel_inference.py \
             --contrast \
+            --ag \
             --n-trajs $n_trajs \
             --num-gpus $num_gpus \
             --result-root $result_root \
