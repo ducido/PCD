@@ -64,3 +64,5 @@ coverage.xml
 docs/_build/
 
 results*/
+bridge.yaml
+fractal.yaml

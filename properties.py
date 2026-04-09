@@ -75,7 +75,7 @@ AG_CONTRAST_OPEN_PIZERO_CONFIG = dict(
     ag_weight=0.5
 )
 
-def get_policy_config(policy, checkpoint, task, opts, contrast, ag):
+def get_policy_config(policy, checkpoint, task, opts, contrast, ag=False):
     if policy == 'rt1':
         config = RT1_CONFIG
         config['saved_model_path'] = checkpoint

@@ -38,7 +38,8 @@ class SimplerAdapter(BaseEnvAdapter):
         assert proprio_normalization_type in ["bound", "gaussian"]
 
         # for normalization
-        dataset_statistics_path='/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero/open_pi_zero/config/fractal_statistics.json'
+        # dataset_statistics_path='/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero/open_pi_zero/config/fractal_statistics.json'
+        # dataset_statistics_path='/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero/open_pi_zero/config/bridge_statistics.json'
         with tf.io.gfile.GFile(dataset_statistics_path, "r") as f:
             self.dataset_statistics = json.load(f)
 

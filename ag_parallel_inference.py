@@ -7,6 +7,8 @@ import shutil
 import traceback
 
 from utils import *
+from multiprocessing import Lock
+gpu_lock = Lock()
 
 
 def get_image_from_maniskill2_obs_dict(env, obs, camera_name=None):
@@ -150,6 +152,7 @@ class ParallelRunner:
                     policy.model.to('cpu')
                     del policy.model
                     del policy
+
                     policy = self._build_policy(show_detail)
             
             except Exception as e:
@@ -221,7 +224,6 @@ class ParallelRunner:
                     self.logger.info("Using only CD")
                     raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
 
-
             if not isinstance(actions, list):
                 actions = [actions]
             
@@ -287,8 +289,8 @@ class ParallelRunner:
 
         if self.contrast:
             self._build_contrast_image_generator(env, show_detail)
-        
-        policy = self._build_policy(show_detail)
+        with gpu_lock:
+            policy = self._build_policy(show_detail)
         others = self._build_others(show_detail)
         return env, policy, others
 
