@@ -748,7 +748,6 @@ class PiZero(nn.Module, NoSyncBase):
             action += delta_t * action_vel
 
             #######
-            print("hehe")
             ori_actions, contrast_actions = torch.chunk(action, 2, dim=0) # num_repeats, 4, 7
             cd_actions = cd_function.decode_torch_no_sample(ori_actions, contrast_actions) # 1, 4, 7
             action = torch.cat([cd_actions, contrast_actions], dim=0)

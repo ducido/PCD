@@ -89,7 +89,7 @@ class ContrastDecoding:
     def decode_torch(self, data, contrast_data):
         B, T, D = data.shape
         N = T * D
-        data = data.reshape(B, N).permute(1, 0)
+        data = data.reshape(B, N).permute(1, 0) # 28,24
         contrast_data = contrast_data.reshape(B, N).permute(1, 0)
         
         bandwidth = self.bandwidth_factor * scott_rule_torch(data)
@@ -104,7 +104,7 @@ class ContrastDecoding:
         final_prob[prob < self.keep_threshold * prob.max(dim=-1, keepdims=True).values] = 0.0
         final_prob = final_prob / final_prob.max(dim=-1, keepdims=True).values * prob.max(dim=-1, keepdims=True).values
         
-        # [N, B] -> [N,] -> [T, D]
+        # [N, B] -> [N,] -> [T, D].   (28, 24) -> (24) -> (4,7)
         sample = data[range(N), prob.argmax(dim=-1)].reshape(T, D)
         contrast_sample = data[range(N), final_prob.argmax(dim=-1)].reshape(T, D)
 
@@ -135,16 +135,22 @@ class ContrastDecoding:
         contrast_bandwidth = self.bandwidth_factor * scott_rule_torch(contrast_data)
         contrast_prob = kde_torch(data, contrast_data, contrast_bandwidth, gaussian_kernel_torch)
         
-        contrast_factor = prob / contrast_prob
+        contrast_factor = prob / (contrast_prob + 1e-8)
         final_prob = prob * contrast_factor ** self.alpha
         
         final_prob[prob < self.keep_threshold * prob.max(dim=-1, keepdims=True).values] = 0.0
         final_prob = final_prob / final_prob.max(dim=-1, keepdims=True).values * prob.max(dim=-1, keepdims=True).values
         
-        print(data.shape, final_prob.shape)
-        breakpoint()
-        sample = data * final_prob
-        return sample.unsqueeze(0)
+        weights = final_prob / (final_prob.sum(dim=1, keepdim=True) + 1e-8) # N,B 28,24
+        data_bt = data.permute(1, 0).reshape(B, T, D)
+        weights_bt = weights.permute(1, 0).reshape(B, T, D)
+
+        # compute mean per (T,D)
+        mean = (data_bt * weights_bt).sum(dim=0, keepdim=True)  # (1,T,D)
+
+        # shift candidates toward mean
+        data_bt[:, :, :6] = data_bt[:, :, :6] + (mean[:, :, :6] - data_bt[:, :, :6]) * weights_bt[:, :, :6]
+        return data_bt
 
     def decode_jax(self, data, contrast_data):
         B, T, D = data.shape

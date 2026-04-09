@@ -9,7 +9,7 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=1
+num_gpus=4
 n_trajs=100
 result_root="./results_4gpu/default/contrast_in_ag"
 
