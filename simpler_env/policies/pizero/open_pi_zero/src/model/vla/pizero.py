@@ -662,6 +662,109 @@ class PiZero(nn.Module, NoSyncBase):
             )
         return action
 
+
+    def cd_in_ag_infer_actions(
+        self,
+        input_ids: torch.LongTensor,
+        pixel_values: torch.FloatTensor,
+        image_text_proprio_mask: torch.FloatTensor,
+        action_mask: torch.FloatTensor,
+        vlm_position_ids: torch.LongTensor,
+        proprio_position_ids: torch.LongTensor,
+        action_position_ids: torch.LongTensor,
+        proprios: torch.FloatTensor,
+        num_repeats,
+        ag_weight,
+        cd_function,
+    ) -> torch.FloatTensor:
+        dtype, device = pixel_values.dtype, pixel_values.device
+        bsz = pixel_values.size(0)
+        # assert bsz == 1
+        assert bsz == 2
+
+        kv_caches = self.joint_model.build_mixture_caches()
+
+        # merge the text tokens and the image tokens
+        inputs_embeds = self._forward_siglip_and_text_embedding(input_ids, pixel_values)
+
+        # proprio
+        proprio_embeds = self.proprio_encoder(proprios)
+
+        # inputs_embeds = inputs_embeds.repeat(num_repeats, 1, 1)
+        # proprio_embeds = proprio_embeds.repeat(num_repeats, 1, 1)
+        # image_text_proprio_mask = image_text_proprio_mask.repeat(num_repeats, 1, 1, 1)
+        # action_mask = action_mask.repeat(num_repeats, 1, 1, 1)
+        # vlm_position_ids = vlm_position_ids.repeat(num_repeats, 1)
+        # proprio_position_ids = proprio_position_ids.repeat(num_repeats, 1)
+        # action_position_ids = action_position_ids.repeat(num_repeats, 1)
+        inputs_embeds = split_repeat_concat(inputs_embeds, num_repeats)
+        proprio_embeds = split_repeat_concat(proprio_embeds, num_repeats)
+        image_text_proprio_mask = split_repeat_concat(image_text_proprio_mask, num_repeats)
+        action_mask = split_repeat_concat(action_mask, num_repeats)
+        vlm_position_ids = split_repeat_concat(vlm_position_ids, num_repeats)
+        proprio_position_ids = split_repeat_concat(proprio_position_ids, num_repeats)
+        action_position_ids = split_repeat_concat(action_position_ids, num_repeats)
+
+        # forward pass thru the vlm and proprio, cache the kv
+        _, kv_caches = self.joint_model(
+            attention_mask=image_text_proprio_mask,
+            position_ids_all={
+                "vlm": vlm_position_ids,
+                "proprio": proprio_position_ids,
+            },
+            embeds_all={
+                "vlm": inputs_embeds,
+                "proprio": proprio_embeds,
+            },
+            kv_caches=kv_caches,
+            return_caches=True,
+        )
+
+        # sample pure action noise
+        action = torch.randn((2 * num_repeats, self.horizon_steps, self.action_dim), device=device, dtype=dtype)
+
+        # forward euler integration --- using kv caches of vlm and proprio
+        delta_t = 1.0 / self.num_inference_steps
+        t = torch.zeros(2 * num_repeats, device=device, dtype=dtype)
+        for _ in range(self.num_inference_steps):
+            # encode action and time into embedding
+            time_cond = self.time_embedding(t)
+            # [Batch_Size, Horizon_Steps, Embed_Dim]
+            if self.action_expert_adaptive_mode:
+                action_embeds = self.action_encoder(action)
+            else:
+                action_embeds = self.action_encoder(action, time_cond)
+            # [Batch_Size, Horizon_Steps, Embed_Dim]
+            action_embeds = self.joint_model(
+                attention_mask=action_mask,
+                position_ids_all={"action": action_position_ids},
+                embeds_all={"action": action_embeds},
+                time_cond=time_cond,
+                kv_caches=kv_caches,
+                cache_mode="append_non_active",  # use caches from other mixtures, i.e., vlm and proprio
+            )["action"]
+            # decode action: [Batch_Size, Horizon_Steps, Action_Dim]
+            action_vel = self.action_decoder(action_embeds)
+            action += delta_t * action_vel
+
+            #######
+            print("hehe")
+            ori_actions, contrast_actions = torch.chunk(action, 2, dim=0) # num_repeats, 4, 7
+            cd_actions = cd_function.decode_torch_no_sample(ori_actions, contrast_actions) # 1, 4, 7
+            action = torch.cat([cd_actions, contrast_actions], dim=0)
+            #######
+            t += delta_t
+
+        # clamp final output if specified
+        if self.final_action_clip_value is not None:
+            assert 2!=2
+            action = torch.clamp(
+                action,
+                -self.final_action_clip_value,
+                self.final_action_clip_value,
+            )
+        return action
+
     def infer_actions(
         self,
         input_ids: torch.LongTensor,

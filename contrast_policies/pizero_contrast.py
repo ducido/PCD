@@ -69,6 +69,30 @@ class PiZeroContrastInference(PiZeroInference):
         return raw_actions, actions, {}
 
     @torch.no_grad()
+    def contrast_in_ag_step(self, image, contrast_image, instruction, proprio):
+        inputs = self.preprocess_inputs(image, instruction, proprio)
+        contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
+       
+        # actions = self.forward_actions(inputs)
+        # contrast_actions = self.forward_actions(contrast_inputs)
+ 
+        all_inputs = {}
+        for k in inputs:
+            all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
+        all_actions = self.cd_in_ag_forward_actions(all_inputs, cd_function=self.contrast_decoding)
+
+        assert len(all_actions) == 2, "AutoGuidance without CD should return 2 actions"
+
+        actions, contrast_actions = torch.chunk(all_actions, 2, dim=0)
+
+        raw_actions = actions
+        if self.clip_value is not None:
+            raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
+        
+        actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
+        return raw_actions, actions, {}
+
+    @torch.no_grad()
     def ag_contrast_step(self, image, contrast_image, instruction, proprio):
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
@@ -115,7 +139,18 @@ class PiZeroContrastInference(PiZeroInference):
         with torch.inference_mode():
             if self.use_naive:
                 actions = self.model.infer_actions_naive(**inputs)
-                breakpoint()
+                assert 2!=2
             else:
                 actions = self.model.auto_guidance_infer_actions(**inputs)
+        return actions
+
+    def cd_in_ag_forward_actions(self, inputs, cd_function):
+        inputs.update({'num_repeats': self.num_repeats})
+        inputs.update({'ag_weight': self.ag_weight})
+        with torch.inference_mode():
+            if self.use_naive:
+                actions = self.model.infer_actions_naive(**inputs)
+                assert 2!=2
+            else:
+                actions = self.model.cd_in_ag_infer_actions(**inputs, cd_function=cd_function)
         return actions

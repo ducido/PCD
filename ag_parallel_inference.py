@@ -49,6 +49,7 @@ class ParallelRunner:
                  contrast=False,
                  ag=False,
                  ag_no_cd=False,
+                 cd_in_ag=False,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -59,6 +60,7 @@ class ParallelRunner:
         self.contrast = contrast
         self.ag = ag
         self.ag_no_cd = ag_no_cd
+        self.cd_in_ag = cd_in_ag
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -217,8 +219,11 @@ class ParallelRunner:
                 if self.ag and self.ag_no_cd:
                     self.logger.info("Using AutoGuidance without CD")
                     raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.ag and self.cd_in_ag:
+                    self.logger.info("Using CD inside AutoGuidance")
+                    raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 elif self.ag:
-                    self.logger.info("Using AutoGuidance with CD")
+                    self.logger.info("Using AutoGuidance parallel with CD")
                     raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 else:
                     self.logger.info("Using only CD")
@@ -427,6 +432,7 @@ def main(args):
                                       contrast=args.contrast,
                                       ag=args.ag,
                                       ag_no_cd=args.ag_no_cd,
+                                      cd_in_ag=args.cd_in_ag,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -438,6 +444,7 @@ def main(args):
                                 contrast=args.contrast,
                                 ag=args.ag,
                                 ag_no_cd=args.ag_no_cd,
+                                cd_in_ag=args.cd_in_ag,
                                 opts=args.opts)
     runner.run()
 
@@ -453,6 +460,7 @@ if __name__ == '__main__':
     parser.add_argument("--contrast", action="store_true")
     parser.add_argument("--ag", action="store_true")
     parser.add_argument("--ag-no-cd", action="store_true")
+    parser.add_argument("--cd-in-ag", action="store_true")
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()

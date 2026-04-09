@@ -85,7 +85,7 @@ class ContrastDecoding:
             return self.decode_jax(data, contrast_data)
         else:
             raise NotImplementedError()
-        
+    
     def decode_torch(self, data, contrast_data):
         B, T, D = data.shape
         N = T * D
@@ -120,6 +120,30 @@ class ContrastDecoding:
 
         # update x, y, z, roll, pitch, yaw
         sample[:, :6] = contrast_sample[:, :6]
+        return sample.unsqueeze(0)
+
+       
+    def decode_torch_no_sample(self, data, contrast_data):
+        B, T, D = data.shape
+        N = T * D
+        data = data.reshape(B, N).permute(1, 0)
+        contrast_data = contrast_data.reshape(B, N).permute(1, 0)
+        
+        bandwidth = self.bandwidth_factor * scott_rule_torch(data)
+        prob = kde_torch(data, data, bandwidth, gaussian_kernel_torch)
+        
+        contrast_bandwidth = self.bandwidth_factor * scott_rule_torch(contrast_data)
+        contrast_prob = kde_torch(data, contrast_data, contrast_bandwidth, gaussian_kernel_torch)
+        
+        contrast_factor = prob / contrast_prob
+        final_prob = prob * contrast_factor ** self.alpha
+        
+        final_prob[prob < self.keep_threshold * prob.max(dim=-1, keepdims=True).values] = 0.0
+        final_prob = final_prob / final_prob.max(dim=-1, keepdims=True).values * prob.max(dim=-1, keepdims=True).values
+        
+        print(data.shape, final_prob.shape)
+        breakpoint()
+        sample = data * final_prob
         return sample.unsqueeze(0)
 
     def decode_jax(self, data, contrast_data):
