@@ -3,13 +3,14 @@ source .venv/bin/activate
 module load gcc/13.2.0
 module load ffmpeg/7.0.2
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
+export CUDA_VISIBLE_DEVICES=2
 
 
 # BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
 BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=4
+num_gpus=1
 n_trajs=100
 result_root="./results_4gpu/default/contrast_in_ag"
 
@@ -20,10 +21,10 @@ policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
 
 tasks=(
-    "google_robot_pick_coke_can"
+    # "google_robot_pick_coke_can"
     # "google_robot_move_near"
     # "google_robot_close_drawer"
-    # "google_robot_open_drawer"
+    "google_robot_open_drawer"
     # "google_robot_place_apple_in_closed_top_drawer"
     # "widowx_carrot_on_plate"
     # "widowx_spoon_on_towel"

@@ -301,7 +301,7 @@ class ParallelRunner:
 
     def _set_gpu(self, gpu_id):
         """  Set GPU, it must be called before building policy. """
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         # list_physical devices can avoid cuda error, don't know why
         import tensorflow as tf
         tf.config.list_physical_devices("GPU")
