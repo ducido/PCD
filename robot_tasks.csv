@@ -1,0 +1,39 @@
+task,instruction,is_final_subtask
+google_robot_pick_coke_can,pick coke can,True
+google_robot_move_near,move blue plastic bottle near sponge,True
+google_robot_move_near,move sponge near 7up can,True
+google_robot_move_near,move 7up can near sponge,True
+google_robot_move_near,move sponge near blue plastic bottle,True
+google_robot_move_near,move redbull can near orange,True
+google_robot_move_near,move apple near redbull can,True
+google_robot_move_near,move orange near blue plastic bottle,True
+google_robot_move_near,move 7up can near blue plastic bottle,True
+google_robot_move_near,move pepsi can near orange,True
+google_robot_move_near,move apple near coke can,True
+google_robot_move_near,move coke can near apple,True
+google_robot_move_near,move orange near pepsi can,True
+google_robot_move_near,move 7up can near apple,True
+google_robot_move_near,move pepsi can near blue plastic bottle,True
+google_robot_move_near,move redbull can near pepsi can,True
+google_robot_move_near,move blue plastic bottle near orange,True
+google_robot_move_near,move apple near sponge,True
+google_robot_move_near,move sponge near apple,True
+google_robot_move_near,move apple near 7up can,True
+google_robot_move_near,move redbull can near apple,True
+google_robot_move_near,move blue plastic bottle near pepsi can,True
+google_robot_move_near,move pepsi can near redbull can,True
+google_robot_move_near,move orange near redbull can,True
+google_robot_move_near,move coke can near redbull can,True
+google_robot_move_near,move redbull can near coke can,True
+google_robot_close_drawer,close top drawer,True
+google_robot_close_drawer,close middle drawer,True
+google_robot_close_drawer,close bottom drawer,True
+google_robot_open_drawer,open top drawer,True
+google_robot_open_drawer,open middle drawer,True
+google_robot_open_drawer,open bottom drawer,True
+google_robot_place_apple_in_closed_top_drawer,open top drawer,False
+google_robot_place_apple_in_closed_top_drawer,place apple into top drawer,True
+widowx_carrot_on_plate,put carrot on plate,True
+widowx_spoon_on_towel,put the spoon on the towel,True
+widowx_put_eggplant_in_basket,put eggplant into yellow basket,True
+widowx_stack_cube,stack the green block on the yellow block,True

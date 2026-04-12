@@ -81,11 +81,10 @@ class PiZeroContrastInference(PiZeroInference):
             all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
         all_actions = self.cd_in_ag_forward_actions(all_inputs, cd_function=self.contrast_decoding)
 
-        assert len(all_actions) == 2, "AutoGuidance without CD should return 2 actions"
-
+        # assert len(all_actions) == 2, "AutoGuidance without CD should return 2 actions"
         actions, contrast_actions = torch.chunk(all_actions, 2, dim=0)
+        raw_actions = self.contrast_decoding(actions, contrast_actions)
 
-        raw_actions = actions
         if self.clip_value is not None:
             raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
         
