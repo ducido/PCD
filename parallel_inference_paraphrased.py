@@ -7,9 +7,22 @@ import shutil
 import traceback
 
 from utils import *
-from multiprocessing import Lock
-gpu_lock = Lock()
 
+import pandas as pd
+
+# đọc csv
+para_df = pd.read_csv("robot_tasks_paraphrased.csv")
+
+def paraphrase_instruction(instruction, task):
+    row = para_df[
+        (para_df["task"] == task) &
+        (para_df["instruction"] == instruction)
+    ]
+    # lấy paraphrased
+    if row.empty:
+        print(f"instruction: {instruction} not found in paraphrased dataset")
+    new_instruction = row.iloc[0]["paraphrased_instruction"]
+    return new_instruction
 
 def get_image_from_maniskill2_obs_dict(env, obs, camera_name=None):
     # obtain image from observation dictionary returned by ManiSkill2 environment
@@ -47,9 +60,6 @@ class ParallelRunner:
                  result_root='./results',
                  n_trajs=100,
                  contrast=False,
-                 ag=False,
-                 ag_no_cd=False,
-                 cd_in_ag=False,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -58,9 +68,6 @@ class ParallelRunner:
         self.result_root = result_root
         self.n_trajs = n_trajs
         self.contrast = contrast
-        self.ag = ag
-        self.ag_no_cd = ag_no_cd
-        self.cd_in_ag = cd_in_ag
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -154,8 +161,7 @@ class ParallelRunner:
                     policy.model.to('cpu')
                     del policy.model
                     del policy
-                    with gpu_lock:  
-                        policy = self._build_policy(show_detail)
+                    policy = self._build_policy(show_detail)
             
             except Exception as e:
                 self.logger.error(f"Episode {episode} failed with error: {e}.")
@@ -185,6 +191,9 @@ class ParallelRunner:
 
         # get initial instruction
         instruction = env.unwrapped.get_language_instruction()
+        instruction = paraphrase_instruction(instruction, task=self.task)
+
+
         is_final_subtask = env.unwrapped.is_final_subtask() 
 
         # reset policy
@@ -205,7 +214,7 @@ class ParallelRunner:
         if not self.contrast:
             frames.append(image)
         else:
-            contrast_image = self.contrast_image_generator.generate(obs, instruction, self.logger)
+            contrast_image = self.contrast_image_generator.generate(obs, instruction)
             frames.append(tile_images([image, contrast_image]))
         
         # run episode
@@ -213,21 +222,9 @@ class ParallelRunner:
             # get action from policy
             # only pi-0 use proprio
             if not self.contrast:
-                self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                if self.ag and self.ag_no_cd:
-                    self.logger.info("Using AutoGuidance without CD")
-                    raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.ag and self.cd_in_ag:
-                    self.logger.info("Using CD inside AutoGuidance")
-                    raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.ag:
-                    self.logger.info("Using AutoGuidance parallel with CD")
-                    raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                else:
-                    self.logger.info("Using only CD")
-                    raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
 
             if not isinstance(actions, list):
                 actions = [actions]
@@ -264,6 +261,7 @@ class ParallelRunner:
                 new_instruction = env.unwrapped.get_language_instruction()
                 if new_instruction != instruction:
                     instruction = new_instruction
+                    instruction = paraphrase_instruction(instruction, task=self.task)
                     if show_detail:
                         self.logger.info(f"New instruction: {instruction}")
         
@@ -294,8 +292,8 @@ class ParallelRunner:
 
         if self.contrast:
             self._build_contrast_image_generator(env, show_detail)
-        with gpu_lock:
-            policy = self._build_policy(show_detail)
+        
+        policy = self._build_policy(show_detail)
         others = self._build_others(show_detail)
         return env, policy, others
 
@@ -314,7 +312,8 @@ class ParallelRunner:
     def _build_policy(self, show_detail=False):
         """ Build policy model. """
         from properties import get_policy_config
-        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag)
+        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast)
+        
         if show_detail:
             self.logger.infos("Policy Config", config)
 
@@ -430,9 +429,6 @@ def main(args):
                                       result_root=args.result_root,
                                       n_trajs=args.n_trajs,
                                       contrast=args.contrast,
-                                      ag=args.ag,
-                                      ag_no_cd=args.ag_no_cd,
-                                      cd_in_ag=args.cd_in_ag,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -442,9 +438,6 @@ def main(args):
                                 result_root=args.result_root,
                                 n_trajs=args.n_trajs,
                                 contrast=args.contrast,
-                                ag=args.ag,
-                                ag_no_cd=args.ag_no_cd,
-                                cd_in_ag=args.cd_in_ag,
                                 opts=args.opts)
     runner.run()
 
@@ -458,9 +451,6 @@ if __name__ == '__main__':
     parser.add_argument("--result-root", type=str, default="./results")
     parser.add_argument("--n-trajs", type=int, default=100)
     parser.add_argument("--contrast", action="store_true")
-    parser.add_argument("--ag", action="store_true")
-    parser.add_argument("--ag-no-cd", action="store_true")
-    parser.add_argument("--cd-in-ag", action="store_true")
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()

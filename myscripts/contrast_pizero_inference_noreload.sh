@@ -5,16 +5,16 @@ module load ffmpeg/7.0.2
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 
-# BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
-BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
+BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
+# BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
 num_gpus=4
 n_trajs=100
-result_root="./results_4gpu/default/ag_contrast"
+result_root="./results_4gpu/default/contrast_noreload"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24 ag_weight 0.6"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
@@ -24,11 +24,11 @@ tasks=(
     "google_robot_move_near"
     "google_robot_close_drawer"
     "google_robot_open_drawer"
-    "google_robot_place_apple_in_closed_top_drawer"
-    "widowx_carrot_on_plate"
-    "widowx_spoon_on_towel"
-    "widowx_put_eggplant_in_basket"
-    "widowx_stack_cube"
+    # "google_robot_place_apple_in_closed_top_drawer"
+    # "widowx_carrot_on_plate"
+    # "widowx_spoon_on_towel"
+    # "widowx_put_eggplant_in_basket"
+    # "widowx_stack_cube"
 )
 
 
@@ -36,9 +36,8 @@ for i in "${!policies[@]}"; do
     for task in "${tasks[@]}"; do
         echo "Running inference for ${policies[$i]} on $task"
 
-        python ag_parallel_inference.py \
+        python parallel_inference_noreload.py \
             --contrast \
-            --ag \
             --n-trajs $n_trajs \
             --num-gpus $num_gpus \
             --result-root $result_root \

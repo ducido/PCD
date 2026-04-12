@@ -1,0 +1,39 @@
+task,instruction,is_final_subtask,paraphrased_instruction
+google_robot_pick_coke_can,pick coke can,True,pick up coke can on the table
+google_robot_move_near,move blue plastic bottle near sponge,True,put blue plastic bottle close to sponge
+google_robot_move_near,move sponge near 7up can,True,put sponge near 7up can
+google_robot_move_near,move 7up can near sponge,True,place 7up can near sponge
+google_robot_move_near,move sponge near blue plastic bottle,True,move sponge next to blue plastic bottle
+google_robot_move_near,move redbull can near orange,True,bring redbull can close to orange
+google_robot_move_near,move apple near redbull can,True,put apple near redbull can
+google_robot_move_near,move orange near blue plastic bottle,True,bring orange near blue plastic bottle
+google_robot_move_near,move 7up can near blue plastic bottle,True,place 7up can next to blue plastic bottle
+google_robot_move_near,move pepsi can near orange,True,bring pepsi can near orange
+google_robot_move_near,move apple near coke can,True,put apple next to coke can
+google_robot_move_near,move coke can near apple,True,bring coke can close to apple
+google_robot_move_near,move orange near pepsi can,True,put orange next to pepsi can
+google_robot_move_near,move 7up can near apple,True,put 7up can close to apple
+google_robot_move_near,move pepsi can near blue plastic bottle,True,put pepsi can next to blue plastic bottle
+google_robot_move_near,move redbull can near pepsi can,True,bring redbull can near pepsi can
+google_robot_move_near,move blue plastic bottle near orange,True,move blue plastic bottle next to orange
+google_robot_move_near,move apple near sponge,True,place apple next to sponge
+google_robot_move_near,move sponge near apple,True,place sponge near apple
+google_robot_move_near,move apple near 7up can,True,move apple close to 7up can
+google_robot_move_near,move redbull can near apple,True,place redbull can close to apple
+google_robot_move_near,move blue plastic bottle near pepsi can,True,put blue plastic bottle near pepsi can
+google_robot_move_near,move pepsi can near redbull can,True,bring pepsi can near redbull can
+google_robot_move_near,move orange near redbull can,True,place orange close to redbull can
+google_robot_move_near,move coke can near redbull can,True,put coke can close to redbull can
+google_robot_move_near,move redbull can near coke can,True,put redbull can next to coke can
+google_robot_close_drawer,close top drawer,True,shut top drawer
+google_robot_close_drawer,close middle drawer,True,shut middle drawer
+google_robot_close_drawer,close bottom drawer,True,shut bottom drawer
+google_robot_open_drawer,open top drawer,True,open top drawer
+google_robot_open_drawer,open middle drawer,True,open middle drawer
+google_robot_open_drawer,open bottom drawer,True,open bottom drawer
+google_robot_place_apple_in_closed_top_drawer,open top drawer,False,open top drawer
+google_robot_place_apple_in_closed_top_drawer,place apple into top drawer,True,put apple inside top drawer
+widowx_carrot_on_plate,put carrot on plate,True,place carrot on plate
+widowx_spoon_on_towel,put the spoon on the towel,True,put the spoon on top of the towel
+widowx_put_eggplant_in_basket,put eggplant into yellow basket,True,bring eggplant into yellow basket
+widowx_stack_cube,stack the green block on the yellow block,True,place the green block on top of the yellow block

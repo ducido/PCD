@@ -73,7 +73,7 @@ class ContrastImageGenerator:
         self.predictor = None
         self.inpainter = build_inpainter(inpaint_mode)
     
-    def generate(self, obs, task_description):
+    def generate(self, obs, task_description, logging=None, is_inpaint=True):
         if task_description != self.task_description:
             self.reset_mask_and_keep_object_names(task_description)
             self.task_description = task_description
@@ -86,8 +86,14 @@ class ContrastImageGenerator:
             mask, excluded_mask = self.get_mask_by_gt(obs, reverse_mask=False)
         else:
             mask, excluded_mask = self.get_mask_by_predictor(obs, reverse_mask=False)
-        
-        image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
+
+        if is_inpaint:
+            image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
+        else:
+            logging.info("No inpainting, just masking objects")
+            rbg_image = self._get_rgb_image(obs)
+            masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
+            image = masked_image
         return image
     
     def reset(self):
