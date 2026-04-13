@@ -67,15 +67,17 @@ CONTRAST_OPEN_PIZERO_CONFIG = dict(
     keep_threshold=0.5,
 )
 
-AG_CONTRAST_OPEN_PIZERO_CONFIG = dict(
+MY_CONTRAST_OPEN_PIZERO_CONFIG = dict(
     alpha=0.2,
     num_repeats=20,
     bandwidth_factor=1.0,
     keep_threshold=0.5,
-    ag_weight=0.5
+    ag_weight=0.5,
+    knn_k=5
 )
 
-def get_policy_config(policy, checkpoint, task, opts, contrast, ag=False):
+
+def get_policy_config(policy, checkpoint, task, opts, contrast, ag=False, cd_knn=False):
     if policy == 'rt1':
         config = RT1_CONFIG
         config['saved_model_path'] = checkpoint
@@ -107,8 +109,8 @@ def get_policy_config(policy, checkpoint, task, opts, contrast, ag=False):
         elif policy == 'openvla':
             config.update(CONTRAST_OPENVLA_CONFIG)
         elif policy == 'pizero':
-            if ag:
-                config.update(AG_CONTRAST_OPEN_PIZERO_CONFIG)
+            if ag or cd_knn:
+                config.update(MY_CONTRAST_OPEN_PIZERO_CONFIG)
             else:
                 config.update(CONTRAST_OPEN_PIZERO_CONFIG)
         else:

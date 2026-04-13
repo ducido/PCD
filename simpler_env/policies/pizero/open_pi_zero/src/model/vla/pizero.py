@@ -756,7 +756,6 @@ class PiZero(nn.Module, NoSyncBase):
 
         # clamp final output if specified
         if self.final_action_clip_value is not None:
-            assert 2!=2
             action = torch.clamp(
                 action,
                 -self.final_action_clip_value,
