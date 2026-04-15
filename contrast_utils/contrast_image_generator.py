@@ -10,6 +10,44 @@ from .properties import _ROBOT_NAMES
 from .utils import visualize_multi_objects
 
 
+def mask_with_bbox_noise(rbg_image, mask, pad=10):
+    """
+    rbg_image: (H, W, 3)
+    mask: (H, W) binary (0/1 hoặc bool)
+    pad: số pixel mở rộng bbox
+    """
+
+    masked_image = rbg_image.copy()
+
+    ys, xs = np.where(mask > 0)
+
+    # nếu không có object thì return ảnh gốc
+    if len(xs) == 0 or len(ys) == 0:
+        return masked_image
+
+    # bounding box
+    x_min, x_max = xs.min(), xs.max()
+    y_min, y_max = ys.min(), ys.max()
+
+    # padding
+    H, W = mask.shape
+    x_min = max(0, x_min - pad)
+    x_max = min(W - 1, x_max + pad)
+    y_min = max(0, y_min - pad)
+    y_max = min(H - 1, y_max + pad)
+
+    # tạo noise
+    noise = np.random.randint(
+        0, 256,
+        size=(y_max - y_min + 1, x_max - x_min + 1, 3),
+        dtype=np.uint8
+    )
+
+    # fill rectangle bằng noise
+    masked_image[y_min:y_max+1, x_min:x_max+1] = noise
+
+    return masked_image
+
 def mask_to_points(mask):
     if not mask.any():
         return None
@@ -90,9 +128,14 @@ class ContrastImageGenerator:
         if is_inpaint:
             image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
         else:
-            logging.info("No inpainting, just masking objects")
+            # logging.info("No inpainting, masking objects")
+            # rbg_image = self._get_rgb_image(obs)
+            # masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
+            # image = masked_image
+
+            logging.info("No inpainting, masking objects with bbox noise")
             rbg_image = self._get_rgb_image(obs)
-            masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
+            masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
             image = masked_image
         return image
     

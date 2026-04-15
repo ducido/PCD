@@ -9,9 +9,9 @@ BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_
 # BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=4
+num_gpus=3
 n_trajs=100
-result_root="./results_4gpu/default/contrast_knn_de_noinpaint"
+result_root="./results_4gpu/default/contrast_knn_de_noinpaint_masknoise"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
 search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24 knn_k 10"
@@ -20,14 +20,14 @@ policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
 
 tasks=(
-    # "google_robot_close_drawer"
-    # "google_robot_move_near"
-    # "google_robot_open_drawer"
-    # "google_robot_pick_coke_can"
-    # "widowx_carrot_on_plate"
-    # "widowx_put_eggplant_in_basket"
-    # "widowx_spoon_on_towel"
-    # "widowx_stack_cube"
+    "google_robot_close_drawer"
+    "google_robot_move_near"
+    "google_robot_open_drawer"
+    "google_robot_pick_coke_can"
+    "widowx_carrot_on_plate"
+    "widowx_put_eggplant_in_basket"
+    "widowx_spoon_on_towel"
+    "widowx_stack_cube"
     "google_robot_place_apple_in_closed_top_drawer"
 )
 

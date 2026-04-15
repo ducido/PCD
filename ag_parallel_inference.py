@@ -149,20 +149,22 @@ class ParallelRunner:
         """
         env, policy, others = self.build_episode(gpu_id, show_detail)
         infos = []
-        for episode in episodes:
+        for i, episode in enumerate(episodes):
             self.logger.info(f"Running episode {episode} on GPU {gpu_id}.")
             try:
                 info = self.run_episode(env, policy, others, episode, show_detail=show_detail)
+
                 if self.policy == 'pizero':
                     self.logger.info('clear cache for pi-0')
                     gc.collect()
                     torch.cuda.empty_cache()
 
-                    # policy.model.to('cpu')
-                    # del policy.model
-                    # del policy
-                    # with gpu_lock:  
-                    #     policy = self._build_policy(show_detail)
+                    if i % 3 == 0:
+                        policy.model.to('cpu')
+                        del policy.model
+                        del policy
+                        with gpu_lock:  
+                            policy = self._build_policy(show_detail)
             
             except Exception as e:
                 self.logger.error(f"Episode {episode} failed with error: {e}.")
