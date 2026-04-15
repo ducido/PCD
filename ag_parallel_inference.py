@@ -159,7 +159,7 @@ class ParallelRunner:
                     gc.collect()
                     torch.cuda.empty_cache()
 
-                    if i % 3 == 0:
+                    if i % 5 == 0:
                         policy.model.to('cpu')
                         del policy.model
                         del policy

@@ -58,6 +58,7 @@ class PiZeroContrastInference(PiZeroInference):
             all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
         all_actions = self.forward_actions(all_inputs)
         actions, contrast_actions = torch.chunk(all_actions, 2, dim=0)
+        # print("actions.shape:", actions.shape, "contrast_actions.shape:", contrast_actions.shape)
 
         def cd_with_knn(actions, contrast_actions, eps=1e-8):
             """

@@ -14,7 +14,7 @@ n_trajs=100
 result_root="./results_4gpu/default/contrast_knn_de"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 48 knn_k 20"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 36 knn_k 3"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
