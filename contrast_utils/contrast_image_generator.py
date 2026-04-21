@@ -48,34 +48,27 @@ def mask_with_bbox_noise(rbg_image, mask, pad=10):
 
     return masked_image
 
-
 def mask_with_bbox_zero(rbg_image, mask, pad=10):
-    """
-    rbg_image: (H, W, 3)
-    mask: (H, W) binary (0/1 hoặc bool)
-    pad: số pixel mở rộng bbox
-    """
+    if mask is None:
+        # không có mask → return ảnh gốc
+        return rbg_image
 
     masked_image = rbg_image.copy()
 
     ys, xs = np.where(mask > 0)
 
-    # nếu không có object thì return ảnh gốc
     if len(xs) == 0 or len(ys) == 0:
         return masked_image
 
-    # bounding box
     x_min, x_max = xs.min(), xs.max()
     y_min, y_max = ys.min(), ys.max()
 
-    # padding
     H, W = mask.shape
     x_min = max(0, x_min - pad)
     x_max = min(W - 1, x_max + pad)
     y_min = max(0, y_min - pad)
     y_max = min(H - 1, y_max + pad)
 
-    # fill rectangle bằng 0
     masked_image[y_min:y_max+1, x_min:x_max+1] = 0
 
     return masked_image
@@ -160,9 +153,12 @@ class ContrastImageGenerator:
         if is_inpaint:
             image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
         else:
+            rbg_image = self._get_rgb_image(obs)
+
             # logging.info("No inpainting, masking objects")
             # rbg_image = self._get_rgb_image(obs)
-            # masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
+        
+            # masked_image = np.where(excluded_mask[..., None] == 0, rbg_image, 0)
             # image = masked_image
 
             # logging.info("No inpainting, masking objects with bbox noise")
@@ -170,10 +166,11 @@ class ContrastImageGenerator:
             # masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
             # image = masked_image
 
-            rbg_image = self._get_rgb_image(obs)
             # masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
             logging.info("No inpainting, masking objects with bbox zero")
             masked_image = mask_with_bbox_zero(rbg_image, mask, pad=15)
+            # logging.info("No inpainting, masking GRIPPER with bbox zero pad 20")
+            # masked_image = mask_with_bbox_zero(rbg_image, excluded_mask, pad=20)
             image = masked_image
         return image
     

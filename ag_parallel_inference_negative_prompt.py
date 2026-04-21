@@ -159,12 +159,12 @@ class ParallelRunner:
                     gc.collect()
                     torch.cuda.empty_cache()
 
-                    if i % 5 == 0:
-                        policy.model.to('cpu')
-                        del policy.model
-                        del policy
-                        with gpu_lock:  
-                            policy = self._build_policy(show_detail)
+                    # if i % 5 == 0:
+                    #     policy.model.to('cpu')
+                    #     del policy.model
+                    #     del policy
+                    #     with gpu_lock:  
+                    #         policy = self._build_policy(show_detail)
             
             except Exception as e:
                 self.logger.error(f"Episode {episode} failed with error: {e}.")
@@ -194,6 +194,7 @@ class ParallelRunner:
 
         # get initial instruction
         instruction = env.unwrapped.get_language_instruction()
+        instruction = 'do nothing, just stand still'
         is_final_subtask = env.unwrapped.is_final_subtask() 
 
         # reset policy
@@ -225,27 +226,25 @@ class ParallelRunner:
                 self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                self.logger.info("Baseline masking bbox zero")
-                raw_action, actions = policy.step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # if self.ag and self.cd_knn:
-                #     self.logger.info("Using AutoGuidance with k-NN")
-                #     # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                #     raise "not implement yet"
-                # if self.ag and self.ag_no_cd:
-                #     self.logger.info("Using AutoGuidance without CD")
-                #     raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # elif self.ag and self.cd_in_ag:
-                #     self.logger.info("Using CD inside AutoGuidance")
-                #     raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # elif self.ag:
-                #     self.logger.info("Using AutoGuidance parallel with CD")
-                #     raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # elif self.cd_knn:
-                #     self.logger.info("Using CD with KNN density estimation")
-                #     raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # else:
-                #     self.logger.info("Using only CD")
-                #     raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                if self.ag and self.cd_knn:
+                    self.logger.info("Using AutoGuidance with k-NN")
+                    # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                    raise "not implement yet"
+                if self.ag and self.ag_no_cd:
+                    self.logger.info("Using AutoGuidance without CD")
+                    raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.ag and self.cd_in_ag:
+                    self.logger.info("Using CD inside AutoGuidance")
+                    raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.ag:
+                    self.logger.info("Using AutoGuidance parallel with CD")
+                    raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.cd_knn:
+                    self.logger.info("Using CD with KNN density estimation")
+                    raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                else:
+                    self.logger.info("Using only CD")
+                    raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
 
             if not isinstance(actions, list):
                 actions = [actions]
@@ -282,6 +281,7 @@ class ParallelRunner:
                 new_instruction = env.unwrapped.get_language_instruction()
                 if new_instruction != instruction:
                     instruction = new_instruction
+                    instruction = 'do nothing, just stand still'
                     if show_detail:
                         self.logger.info(f"New instruction: {instruction}")
         

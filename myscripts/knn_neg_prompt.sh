@@ -11,10 +11,10 @@ export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
 num_gpus=4
 n_trajs=100
-result_root="./results_4gpu/default/contrast_knn_de"
+result_root="./results_4gpu/default/knn_negative_prompt_donothing"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 48 knn_k 5"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 36 knn_k 15"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
@@ -36,9 +36,9 @@ for i in "${!policies[@]}"; do
     for task in "${tasks[@]}"; do
         echo "Running inference for ${policies[$i]} on $task"
 
-        python ag_parallel_inference.py \
+        python text_ag_parallel_inference.py \
             --contrast \
-            --cd-knn \
+            --negative-prompt-knn \
             --n-trajs $n_trajs \
             --num-gpus $num_gpus \
             --result-root $result_root \

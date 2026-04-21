@@ -46,9 +46,87 @@ class PiZeroContrastInference(PiZeroInference):
         return raw_actions, actions, {}
 
     @torch.no_grad()
+    def negative_prompt_pcd_step(self, image, negative_instruction, instruction, proprio):
+        inputs = self.preprocess_inputs(image, instruction, proprio)
+        contrast_inputs = self.preprocess_inputs(image, negative_instruction, proprio)
+       
+        # actions = self.forward_actions(inputs)
+        # contrast_actions = self.forward_actions(contrast_inputs)
+ 
+        all_inputs = {}
+        for k in inputs:
+            all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
+        all_actions = self.forward_actions(all_inputs)
+        actions, contrast_actions = torch.chunk(all_actions, 2, dim=0)
+
+        raw_actions = self.contrast_decoding(actions, contrast_actions)
+        if self.clip_value is not None:
+            raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
+        
+        actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
+        return raw_actions, actions, {}
+
+    @torch.no_grad()
     def knn_de_step(self, image, contrast_image, instruction, proprio):
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
+       
+        # actions = self.forward_actions(inputs)
+        # contrast_actions = self.forward_actions(contrast_inputs)
+ 
+        all_inputs = {}
+        for k in inputs:
+            all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
+        all_actions = self.forward_actions(all_inputs)
+        actions, contrast_actions = torch.chunk(all_actions, 2, dim=0)
+        # print("actions.shape:", actions.shape, "contrast_actions.shape:", contrast_actions.shape)
+
+        def cd_with_knn(actions, contrast_actions, eps=1e-8):
+            """
+            actions: (N, T, D) = (24, 4, 7)
+            contrast_actions: same shape
+
+            return:
+                best_action: (1, T, D)
+            """
+
+            N = actions.shape[0]
+            A = actions.reshape(N, -1).float()              # (N, 28)
+            B = contrast_actions.reshape(N, -1).float()     # (N, 28)
+
+            # kNN in B
+            dist_AB = torch.cdist(A, B, p=2) ** 2   # (N, N)
+            print("knn_k:", self.knn_k)
+            knn_dist_AB, _ = torch.topk(dist_AB, k=self.knn_k, largest=False, dim=1)
+            R_B = knn_dist_AB.sum(dim=1)  # (N,)
+
+            # kNN in A (exclude self)
+            dist_AA = torch.cdist(A, A, p=2) ** 2   # (N, N)
+            # mask diagonal (self-distance = 0)
+            inf_mask = torch.eye(N, device=A.device) * 1e9
+            dist_AA = dist_AA + inf_mask
+            knn_dist_AA, _ = torch.topk(dist_AA, k=self.knn_k, largest=False, dim=1)
+            R_A = knn_dist_AA.sum(dim=1)  # (N,)
+
+            # best of N 
+            scores = torch.log(R_B + eps) - torch.log(R_A + eps)  # (N,)
+            best_idx = torch.argmax(scores)
+            best_action = actions[best_idx:best_idx+1]  # (1, T, D)
+
+            return best_action
+        
+        raw_actions = cd_with_knn(actions, contrast_actions) # should have shape of (1,4,7)
+        if self.clip_value is not None:
+            raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
+        
+        actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
+        return raw_actions, actions, {}
+
+
+    @torch.no_grad()
+    def negative_prompt_knn_de_step(self, image, negative_instruction, instruction, proprio):
+        inputs = self.preprocess_inputs(image, instruction, proprio)
+        contrast_inputs = self.preprocess_inputs(image, negative_instruction, proprio)
        
         # actions = self.forward_actions(inputs)
         # contrast_actions = self.forward_actions(contrast_inputs)

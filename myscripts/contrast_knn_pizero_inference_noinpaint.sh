@@ -9,12 +9,12 @@ BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_
 # BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=3
+num_gpus=4
 n_trajs=100
-result_root="./results_4gpu/default/contrast_knn_de_noinpaint_mask_zero"
+result_root="./results_4gpu/default/contrast_knn_de_noinpaint_mask_gripper_bbox_zero"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 24 knn_k 10"
+search_opts="by box_tracking alpha 0.2 num_repeats 24 knn_k 3"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")

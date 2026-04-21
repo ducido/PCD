@@ -12,6 +12,23 @@ from utils import *
 from multiprocessing import Lock
 gpu_lock = Lock()
 
+import pandas as pd
+
+# đọc csv
+para_df = pd.read_csv("negative_para.csv")
+
+def paraphrase_instruction(instruction, task):
+    row = para_df[
+        (para_df["task"] == task) &
+        (para_df["instruction"] == instruction)
+    ]
+    # lấy paraphrased
+    if row.empty:
+        print(f"instruction: {instruction} not found in paraphrased dataset")
+    new_instruction = row.iloc[0]["paraphrased_instruction"]
+    return new_instruction
+
+
 
 def get_image_from_maniskill2_obs_dict(env, obs, camera_name=None):
     # obtain image from observation dictionary returned by ManiSkill2 environment
@@ -53,6 +70,8 @@ class ParallelRunner:
                  ag_no_cd=False,
                  cd_in_ag=False,
                  cd_knn=False,
+                 negative_prompt_pcd=False,
+                 negative_prompt_knn=False,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -65,6 +84,8 @@ class ParallelRunner:
         self.ag_no_cd = ag_no_cd
         self.cd_in_ag = cd_in_ag
         self.cd_knn = cd_knn
+        self.negative_prompt_pcd = negative_prompt_pcd
+        self.negative_prompt_knn = negative_prompt_knn
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -159,7 +180,7 @@ class ParallelRunner:
                     gc.collect()
                     torch.cuda.empty_cache()
 
-                    if i % 5 == 0:
+                    if i % 10 == 0:
                         policy.model.to('cpu')
                         del policy.model
                         del policy
@@ -214,38 +235,48 @@ class ParallelRunner:
         if not self.contrast:
             frames.append(image)
         else:
-            contrast_image = self.contrast_image_generator.generate(obs, instruction, self.logger)
-            frames.append(tile_images([image, contrast_image]))
+            if self.negative_prompt_pcd or self.negative_prompt_knn:
+                frames.append(tile_images([image, image]))
+            else:
+                contrast_image = self.contrast_image_generator.generate(obs, instruction)
+                frames.append(tile_images([image, contrast_image]))          
         
         # run episode
         while not (predicted_terminated or truncated):
+            if self.negative_prompt_pcd or self.negative_prompt_knn:
+                # negative_prompt = paraphrase_instruction(instruction, task=self.task)
+                negative_prompt = 'do nothing, just stand still'
             # get action from policy
             # only pi-0 use proprio
             if not self.contrast:
                 self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                self.logger.info("Baseline masking bbox zero")
-                raw_action, actions = policy.step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # if self.ag and self.cd_knn:
-                #     self.logger.info("Using AutoGuidance with k-NN")
-                #     # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                #     raise "not implement yet"
-                # if self.ag and self.ag_no_cd:
-                #     self.logger.info("Using AutoGuidance without CD")
-                #     raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # elif self.ag and self.cd_in_ag:
-                #     self.logger.info("Using CD inside AutoGuidance")
-                #     raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # elif self.ag:
-                #     self.logger.info("Using AutoGuidance parallel with CD")
-                #     raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # elif self.cd_knn:
-                #     self.logger.info("Using CD with KNN density estimation")
-                #     raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                # else:
-                #     self.logger.info("Using only CD")
-                #     raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                if self.ag and self.cd_knn:
+                    self.logger.info("Using AutoGuidance with k-NN")
+                    # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                    raise "not implement yet"
+                if self.ag and self.ag_no_cd:
+                    self.logger.info("Using AutoGuidance without CD")
+                    raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.ag and self.cd_in_ag:
+                    self.logger.info("Using CD inside AutoGuidance")
+                    raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.ag:
+                    self.logger.info("Using AutoGuidance parallel with CD")
+                    raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.cd_knn:
+                    self.logger.info("Using CD with KNN density estimation")
+                    raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.negative_prompt_pcd:
+                    self.logger.info(f"Using negative prompt PCD: {negative_prompt}")
+                    raw_action, actions, aux_info = policy.negative_prompt_pcd_step(image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.negative_prompt_knn:
+                    self.logger.info(f"Using negative prompt KNN: {negative_prompt}")
+                    raw_action, actions, aux_info = policy.negative_prompt_knn_de_step(image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
+                else:
+                    self.logger.info("Using only CD")
+                    raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
 
             if not isinstance(actions, list):
                 actions = [actions]
@@ -260,9 +291,14 @@ class ParallelRunner:
                     frames.append(image)
                     # write_images([image], f"visualize/test.jpg")
                 else:
-                    contrast_image = self.contrast_image_generator.generate(obs, instruction)
-                    frames.append(tile_images([image, contrast_image]))
+                    if self.negative_prompt_pcd or self.negative_prompt_knn:
+                        frames.append(tile_images([image, image]))
+                    else:
+                        contrast_image = self.contrast_image_generator.generate(obs, instruction)
+                        frames.append(tile_images([image, contrast_image]))          
+        
                     # write_images([image, contrast_image], f"visualize/test.jpg")
+
 
                 is_final_subtask = env.unwrapped.is_final_subtask() 
                 timestep += 1
@@ -332,7 +368,7 @@ class ParallelRunner:
     def _build_policy(self, show_detail=False):
         """ Build policy model. """
         from properties import get_policy_config
-        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag, self.cd_knn)
+        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag, self.cd_knn, self.negative_prompt_knn)
         if show_detail:
             self.logger.infos("Policy Config", config)
 
@@ -452,6 +488,8 @@ def main(args):
                                       ag_no_cd=args.ag_no_cd,
                                       cd_in_ag=args.cd_in_ag,
                                       cd_knn=args.cd_knn,
+                                      negative_prompt_pcd=args.negative_prompt_pcd,
+                                      negative_prompt_knn=args.negative_prompt_knn,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -465,6 +503,8 @@ def main(args):
                                 ag_no_cd=args.ag_no_cd,
                                 cd_in_ag=args.cd_in_ag,
                                 cd_knn=args.cd_knn,
+                                negative_prompt_pcd=args.negative_prompt_pcd,
+                                negative_prompt_knn=args.negative_prompt_knn,
                                 opts=args.opts)
     runner.run()
 
@@ -482,6 +522,8 @@ if __name__ == '__main__':
     parser.add_argument("--ag-no-cd", action="store_true")
     parser.add_argument("--cd-in-ag", action="store_true")
     parser.add_argument("--cd-knn", action="store_true")
+    parser.add_argument("--negative-prompt-pcd", action="store_true")
+    parser.add_argument("--negative-prompt-knn", action="store_true")
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()
