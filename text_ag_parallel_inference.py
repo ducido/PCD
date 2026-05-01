@@ -72,6 +72,11 @@ class ParallelRunner:
                  cd_knn=False,
                  negative_prompt_pcd=False,
                  negative_prompt_knn=False,
+                 negative_prompt_knn_and_inpainting=False,
+                 negative_prompt_knn_plus_inpainting=False,
+                 masking_state=False,
+                 M_action_horizon=False,
+                 knn_topK_motion=False,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -86,6 +91,11 @@ class ParallelRunner:
         self.cd_knn = cd_knn
         self.negative_prompt_pcd = negative_prompt_pcd
         self.negative_prompt_knn = negative_prompt_knn
+        self.negative_prompt_knn_and_inpainting = negative_prompt_knn_and_inpainting
+        self.negative_prompt_knn_plus_inpainting = negative_prompt_knn_plus_inpainting
+        self.masking_state = masking_state
+        self.M_action_horizon = M_action_horizon
+        self.knn_topK_motion = knn_topK_motion
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -180,7 +190,7 @@ class ParallelRunner:
                     gc.collect()
                     torch.cuda.empty_cache()
 
-                    if i % 10 == 0:
+                    if i % 8 == 0:
                         policy.model.to('cpu')
                         del policy.model
                         del policy
@@ -235,17 +245,14 @@ class ParallelRunner:
         if not self.contrast:
             frames.append(image)
         else:
-            if self.negative_prompt_pcd or self.negative_prompt_knn:
+            if self.negative_prompt_pcd or self.negative_prompt_knn or self.masking_state:
                 frames.append(tile_images([image, image]))
             else:
-                contrast_image = self.contrast_image_generator.generate(obs, instruction)
+                contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger,  is_inpaint=False)
                 frames.append(tile_images([image, contrast_image]))          
         
         # run episode
         while not (predicted_terminated or truncated):
-            if self.negative_prompt_pcd or self.negative_prompt_knn:
-                # negative_prompt = paraphrase_instruction(instruction, task=self.task)
-                negative_prompt = 'do nothing, just stand still'
             # get action from policy
             # only pi-0 use proprio
             if not self.contrast:
@@ -268,12 +275,35 @@ class ParallelRunner:
                 elif self.cd_knn:
                     self.logger.info("Using CD with KNN density estimation")
                     raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.knn_topK_motion:
+                    self.logger.info("Using CD with KNN top-K motion selection")
+                    raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 elif self.negative_prompt_pcd:
+                    negative_prompt = 'do nothing, just stand still'
                     self.logger.info(f"Using negative prompt PCD: {negative_prompt}")
                     raw_action, actions, aux_info = policy.negative_prompt_pcd_step(image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
                 elif self.negative_prompt_knn:
+                    negative_prompt = 'do nothing, just stand still'
                     self.logger.info(f"Using negative prompt KNN: {negative_prompt}")
                     raw_action, actions, aux_info = policy.negative_prompt_knn_de_step(image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.negative_prompt_knn_and_inpainting:
+                    negative_prompt = "do nothing, just stand still"
+                    self.logger.info(f"Using negative prompt knn AND inpainting: {negative_prompt}")
+                    raw_action, actions, aux_info = policy.negative_prompt_and_inpainting_knn_step(image, contrast_image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.negative_prompt_knn_plus_inpainting:
+                    negative_prompt = "do nothing, just stand still"
+                    self.logger.info(f"Using negative prompt knn PLUS inpainting: {negative_prompt}")
+                    raw_action, actions, aux_info = policy.negative_prompt_plus_inpainting_knn_step(image, contrast_image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.masking_state:
+                    self.logger.info("negative signal by Masking State")
+                    proprio = obs['agent']['eef_pos']
+                    contrast_proprio = torch.zeros_like(torch.tensor(proprio))
+                    # contrast_proprio = torch.randn_like(torch.tensor(proprio))
+                    raw_action, actions, aux_info = policy.masking_state_knn_step(image, instruction, proprio=proprio, contrast_proprio=contrast_proprio)
+                elif self.M_action_horizon:
+                    # breakpoint()
+                    self.logger.info("Baseline best of N smoothing based on M")
+                    raw_action, actions, aux_info = policy.base_best_of_N_smooth_step(image, instruction, proprio=obs['agent']['eef_pos'], M_action_horizon=self.M_action_horizon)
                 else:
                     self.logger.info("Using only CD")
                     raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
@@ -291,10 +321,10 @@ class ParallelRunner:
                     frames.append(image)
                     # write_images([image], f"visualize/test.jpg")
                 else:
-                    if self.negative_prompt_pcd or self.negative_prompt_knn:
+                    if self.negative_prompt_pcd or self.negative_prompt_knn or self.masking_state:
                         frames.append(tile_images([image, image]))
                     else:
-                        contrast_image = self.contrast_image_generator.generate(obs, instruction)
+                        contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, is_inpaint=False)
                         frames.append(tile_images([image, contrast_image]))          
         
                     # write_images([image, contrast_image], f"visualize/test.jpg")
@@ -368,7 +398,7 @@ class ParallelRunner:
     def _build_policy(self, show_detail=False):
         """ Build policy model. """
         from properties import get_policy_config
-        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag, self.cd_knn, self.negative_prompt_knn)
+        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag, self.cd_knn, self.negative_prompt_knn, self.negative_prompt_knn_and_inpainting, self.negative_prompt_knn_plus_inpainting, self.masking_state, self.knn_topK_motion)
         if show_detail:
             self.logger.infos("Policy Config", config)
 
@@ -490,6 +520,11 @@ def main(args):
                                       cd_knn=args.cd_knn,
                                       negative_prompt_pcd=args.negative_prompt_pcd,
                                       negative_prompt_knn=args.negative_prompt_knn,
+                                      negative_prompt_knn_and_inpainting=args.negative_prompt_knn_and_inpainting,
+                                      negative_prompt_knn_plus_inpainting=args.negative_prompt_knn_plus_inpainting,
+                                      masking_state=args.masking_state,
+                                      M_action_horizon=args.M_action_horizon,
+                                      knn_topK_motion=args.knn_topK_motion,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -505,6 +540,11 @@ def main(args):
                                 cd_knn=args.cd_knn,
                                 negative_prompt_pcd=args.negative_prompt_pcd,
                                 negative_prompt_knn=args.negative_prompt_knn,
+                                negative_prompt_knn_and_inpainting=args.negative_prompt_knn_and_inpainting,
+                                negative_prompt_knn_plus_inpainting=args.negative_prompt_knn_plus_inpainting,
+                                masking_state=args.masking_state,
+                                M_action_horizon=args.M_action_horizon,
+                                knn_topK_motion=args.knn_topK_motion,
                                 opts=args.opts)
     runner.run()
 
@@ -524,6 +564,11 @@ if __name__ == '__main__':
     parser.add_argument("--cd-knn", action="store_true")
     parser.add_argument("--negative-prompt-pcd", action="store_true")
     parser.add_argument("--negative-prompt-knn", action="store_true")
+    parser.add_argument("--negative-prompt-knn-and-inpainting", action="store_true")
+    parser.add_argument("--negative-prompt-knn-plus-inpainting", action="store_true")
+    parser.add_argument("--masking-state", action="store_true")
+    parser.add_argument("--M-action-horizon", type=int, default=None)
+    parser.add_argument("--knn-topK-motion", action="store_true")
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()

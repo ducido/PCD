@@ -226,7 +226,7 @@ class ParallelRunner:
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
                 self.logger.info("Baseline masking bbox zero")
-                raw_action, actions = policy.step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                raw_action, actions = policy.baseline_step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 # if self.ag and self.cd_knn:
                 #     self.logger.info("Using AutoGuidance with k-NN")
                 #     # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])

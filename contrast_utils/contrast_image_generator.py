@@ -153,24 +153,23 @@ class ContrastImageGenerator:
         if is_inpaint:
             image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
         else:
-            rbg_image = self._get_rgb_image(obs)
 
-            # logging.info("No inpainting, masking objects")
-            # rbg_image = self._get_rgb_image(obs)
-        
-            # masked_image = np.where(excluded_mask[..., None] == 0, rbg_image, 0)
-            # image = masked_image
+            # logging.info("No inpainting, masking objects keep shape")
+            rbg_image = self._get_rgb_image(obs)
+            # masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
+
 
             # logging.info("No inpainting, masking objects with bbox noise")
             # rbg_image = self._get_rgb_image(obs)
             # masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
             # image = masked_image
 
-            # masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
             logging.info("No inpainting, masking objects with bbox zero")
             masked_image = mask_with_bbox_zero(rbg_image, mask, pad=15)
-            # logging.info("No inpainting, masking GRIPPER with bbox zero pad 20")
-            # masked_image = mask_with_bbox_zero(rbg_image, excluded_mask, pad=20)
+            # logging.info("No inpainting, masking GRIPPER with bbox zero pad 15")
+            # masked_image = mask_with_bbox_zero(rbg_image, excluded_mask, pad=15)
+
+
             image = masked_image
         return image
     

@@ -224,25 +224,27 @@ class ParallelRunner:
                 self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                if self.ag and self.cd_knn:
-                    self.logger.info("Using AutoGuidance with k-NN")
-                    # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                    raise "not implement yet"
-                if self.ag and self.ag_no_cd:
-                    self.logger.info("Using AutoGuidance without CD")
-                    raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.ag and self.cd_in_ag:
-                    self.logger.info("Using CD inside AutoGuidance")
-                    raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.ag:
-                    self.logger.info("Using AutoGuidance parallel with CD")
-                    raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.cd_knn:
-                    self.logger.info("Using CD with KNN density estimation")
-                    raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                else:
-                    self.logger.info("Using only CD")
-                    raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                self.logger.info("Baseline masking bbox zero")
+                raw_action, actions = policy.baseline_step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                # if self.ag and self.cd_knn:
+                #     self.logger.info("Using AutoGuidance with k-NN")
+                #     # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                #     raise "not implement yet"
+                # if self.ag and self.ag_no_cd:
+                #     self.logger.info("Using AutoGuidance without CD")
+                #     raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                # elif self.ag and self.cd_in_ag:
+                #     self.logger.info("Using CD inside AutoGuidance")
+                #     raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                # elif self.ag:
+                #     self.logger.info("Using AutoGuidance parallel with CD")
+                #     raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                # elif self.cd_knn:
+                #     self.logger.info("Using CD with KNN density estimation")
+                #     raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                # else:
+                #     self.logger.info("Using only CD")
+                #     raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
 
             if not isinstance(actions, list):
                 actions = [actions]
@@ -316,7 +318,7 @@ class ParallelRunner:
 
     def _set_gpu(self, gpu_id):
         """  Set GPU, it must be called before building policy. """
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         # list_physical devices can avoid cuda error, don't know why
         import tensorflow as tf
         tf.config.list_physical_devices("GPU")
