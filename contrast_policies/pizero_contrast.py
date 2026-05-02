@@ -24,7 +24,6 @@ class PiZeroContrastInference(PiZeroInference):
 
         # set to None to disable clipping in infer_action function
         self.clip_value = self.model.final_action_clip_value
-        self.model.final_action_clip_value = "cc"
 
     @torch.no_grad()
     def baseline_step(self, image, instruction, proprio):
@@ -35,6 +34,20 @@ class PiZeroContrastInference(PiZeroInference):
     
     @torch.no_grad()
     def step(self, image, contrast_image, instruction, proprio):
+        self.model._orig_mod.horizon_steps = 8
+        self.model._orig_mod.num_action_tokens = 8
+        self.model._orig_mod.total_num_tokens = (
+            self.model._orig_mod.max_image_text_tokens
+            + self.model._orig_mod.num_proprio_tokens
+            + self.model._orig_mod.num_action_tokens
+        )
+        self.model.horizon_steps = 8
+        self.model.num_action_tokens = 8
+        self.model.total_num_tokens = (
+            self.model.max_image_text_tokens
+            + self.model.num_proprio_tokens
+            + self.model.num_action_tokens
+        )
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
        
@@ -46,6 +59,8 @@ class PiZeroContrastInference(PiZeroInference):
             all_inputs[k] = torch.cat([inputs[k], contrast_inputs[k]], dim=0)
         all_actions = self.forward_actions(all_inputs)
         actions, contrast_actions = torch.chunk(all_actions, 2, dim=0)
+        actions = actions[:, :4]
+        contrast_actions = contrast_actions[:, :4]
 
         raw_actions = self.contrast_decoding(actions, contrast_actions)
         if self.clip_value is not None:
@@ -250,7 +265,22 @@ class PiZeroContrastInference(PiZeroInference):
 
 
     @torch.no_grad()
-    def knn_topK_motion_step(self, image, contrast_image, instruction, proprio):
+    def knn_topK_motion_step(self, image, contrast_image, instruction, proprio, M_action_horizon):
+        self.model._orig_mod.horizon_steps = M_action_horizon
+        self.model._orig_mod.num_action_tokens = M_action_horizon
+        self.model._orig_mod.total_num_tokens = (
+            self.model._orig_mod.max_image_text_tokens
+            + self.model._orig_mod.num_proprio_tokens
+            + self.model._orig_mod.num_action_tokens
+        )
+        self.model.horizon_steps = M_action_horizon
+        self.model.num_action_tokens = M_action_horizon
+        self.model.total_num_tokens = (
+            self.model.max_image_text_tokens
+            + self.model.num_proprio_tokens
+            + self.model.num_action_tokens
+        )
+
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
        
@@ -300,12 +330,12 @@ class PiZeroContrastInference(PiZeroInference):
 
             top_actions = actions[top_indices]  # (top_k, T, D)
 
-            return top_actions, top_scores
+            return top_actions, top_scores, top_indices
         
-        top_K_best_action, _ = cd_with_knn_topK(actions, contrast_actions) # should have shape of (top_k,4,7)
-        print(top_K_best_action.shape)
-        best_action, jerk_rms = jerk_smoothest_action(top_K_best_action)
-        print(best_action.shape)
+        _, _, top_indices = cd_with_knn_topK(actions[:,:4], contrast_actions[:,:4]) # should have shape of (top_k,4,7)
+        actions = actions[top_indices]
+        _, _, best_idx = jerk_smoothest_action(actions)
+        best_action = actions[best_idx:best_idx+1][:,:4]
 
         raw_actions = best_action
         if self.clip_value is not None:
@@ -719,4 +749,4 @@ def jerk_smoothest_action(long_action):
     # best candidate
     best_idx = torch.argmin(jerk_rms)
     best_action = long_action[best_idx:best_idx+1]
-    return best_action, jerk_rms
+    return best_action, jerk_rms, best_idx

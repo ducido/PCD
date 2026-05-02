@@ -275,9 +275,6 @@ class ParallelRunner:
                 elif self.cd_knn:
                     self.logger.info("Using CD with KNN density estimation")
                     raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.knn_topK_motion:
-                    self.logger.info("Using CD with KNN top-K motion selection")
-                    raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 elif self.negative_prompt_pcd:
                     negative_prompt = 'do nothing, just stand still'
                     self.logger.info(f"Using negative prompt PCD: {negative_prompt}")
@@ -300,10 +297,17 @@ class ParallelRunner:
                     contrast_proprio = torch.zeros_like(torch.tensor(proprio))
                     # contrast_proprio = torch.randn_like(torch.tensor(proprio))
                     raw_action, actions, aux_info = policy.masking_state_knn_step(image, instruction, proprio=proprio, contrast_proprio=contrast_proprio)
+                elif self.M_action_horizon and self.knn_topK_motion:
+                    # breakpoint()
+                    self.logger.info(f"KNN top-K Long-term motion with M action horizon {self.M_action_horizon}")
+                    raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction=instruction, proprio=obs['agent']['eef_pos'], M_action_horizon=self.M_action_horizon)
                 elif self.M_action_horizon:
                     # breakpoint()
                     self.logger.info("Baseline best of N smoothing based on M")
                     raw_action, actions, aux_info = policy.base_best_of_N_smooth_step(image, instruction, proprio=obs['agent']['eef_pos'], M_action_horizon=self.M_action_horizon)
+                elif self.knn_topK_motion:
+                    self.logger.info("Using CD with KNN top-K motion selection")
+                    raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 else:
                     self.logger.info("Using only CD")
                     raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
@@ -357,7 +361,7 @@ class ParallelRunner:
         info.update(stat_final(step_infos))
         success = info['success']
         self.logger.info(f"Episode {episode} finished with success {success}.")
-        write_video(frames, f"{self.result_dir}/episode_{episode}_success_{success}.gif")
+        # write_video(frames, f"{self.result_dir}/episode_{episode}_success_{success}.gif")
         return info
     
     def build_episode(self, gpu_id, show_detail):

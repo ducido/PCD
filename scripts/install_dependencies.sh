@@ -2,7 +2,7 @@
 # create a conda environment
 # conda create -n pcd python=3.10
 # conda activate pcd
-
+export UV_CACHE_DIR=/netscratch/duynguyen/Research/.cache
 uv venv --python 3.10
 
 # install tensorflow
