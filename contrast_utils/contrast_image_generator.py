@@ -7,7 +7,7 @@ from .inpainters import build_inpainter
 from .instruction_templates import get_objects_from_instruction
 from .mask_predictors import build_predictor, predict_masks_with_predictor
 from .properties import _ROBOT_NAMES
-from .utils import visualize_multi_objects
+from .utils import dilate_mask, visualize_multi_objects
 
 
 def mask_with_bbox_noise(rbg_image, mask, pad=10):
@@ -91,6 +91,69 @@ def mask_to_bbox(mask):
     return np.array([x.min(), y.min(), x.max(), y.max()])
     
 
+def _free_box_positions(integral, box_h, box_w):
+    """All (top, left) where a box_h x box_w window contains 0 forbidden pixels."""
+    box_sum = (integral[box_h:, box_w:] - integral[:-box_h, box_w:]
+               - integral[box_h:, :-box_w] + integral[:-box_h, :-box_w])
+    return np.argwhere(box_sum == 0)
+
+
+def mask_with_random_bbox_zero(rbg_image, mask, excluded_mask=None, pad=3, margin=10,
+                               min_size=4, shrink=0.9):
+    """
+    Zero out a bbox at a random position that does not overlap mask / excluded_mask
+    and keeps at least `margin` pixels of distance from them.
+
+    The box starts at the size mask_with_bbox_zero would use (padded bbox of mask)
+    and is shrunk by `shrink` until a valid position exists, down to `min_size`.
+    """
+    if mask is None:
+        return rbg_image
+
+    masked_image = rbg_image.copy()
+
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0 or len(ys) == 0:
+        return masked_image
+
+    H, W = mask.shape
+
+    # initial box size = padded bbox of mask (same as mask_with_bbox_zero)
+    x_min = max(0, xs.min() - pad)
+    x_max = min(W - 1, xs.max() + pad)
+    y_min = max(0, ys.min() - pad)
+    y_max = min(H - 1, ys.max() + pad)
+    box_h = min(H, y_max - y_min + 1)
+    box_w = min(W, x_max - x_min + 1)
+
+    # forbidden region: mask + excluded_mask, grown by `margin` for the distance constraint
+    forbidden = mask.astype(bool).copy()
+    if excluded_mask is not None:
+        forbidden |= excluded_mask.astype(bool)
+    forbidden = dilate_mask(forbidden, 2 * margin + 1)
+    integral = cv2.integral(forbidden.astype(np.uint8), sdepth=cv2.CV_32S)
+
+    # shrink the box (keeping aspect ratio) until it fits somewhere
+    cur_h, cur_w = box_h, box_w
+    while True:
+        candidates = _free_box_positions(integral, cur_h, cur_w)
+        if len(candidates) > 0:
+            break
+        if cur_h <= min_size and cur_w <= min_size:
+            print(f"[random bbox] no free {min_size}x{min_size} spot (margin={margin}), "
+                  "returning image unchanged")
+            return masked_image
+        cur_h = max(min_size, int(cur_h * shrink))
+        cur_w = max(min_size, int(cur_w * shrink))
+
+    if (cur_h, cur_w) != (box_h, box_w):
+        print(f"[random bbox] shrunk box {box_h}x{box_w} -> {cur_h}x{cur_w} to fit")
+
+    top, left = candidates[np.random.randint(len(candidates))]
+    masked_image[top:top + cur_h, left:left + cur_w] = 0
+
+    return masked_image
+
 def name_to_alias(name):
     s = name.split('_')
     rm_list = ['opened', 'light', 'generated', 'modified', 'objaverse', 'bridge', 'baked', 'v2']
@@ -155,19 +218,23 @@ class ContrastImageGenerator:
         else:
 
             # logging.info("No inpainting, masking objects keep shape")
-            rbg_image = self._get_rgb_image(obs)
+            # rbg_image = self._get_rgb_image(obs)
             # masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
-
 
             # logging.info("No inpainting, masking objects with bbox noise")
             # rbg_image = self._get_rgb_image(obs)
             # masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
             # image = masked_image
 
-            logging.info("No inpainting, masking objects with bbox zero")
-            masked_image = mask_with_bbox_zero(rbg_image, mask, pad=15)
+            logging.info("No inpainting, masking objects with bbox zero pad 3")
+            rbg_image = self._get_rgb_image(obs)
+            masked_image = mask_with_bbox_zero(rbg_image, mask, pad=3)
             # logging.info("No inpainting, masking GRIPPER with bbox zero pad 15")
             # masked_image = mask_with_bbox_zero(rbg_image, excluded_mask, pad=15)
+
+            # print("No inpainting, zeroing a random bbox away from mask/excluded_mask")
+            # rbg_image = self._get_rgb_image(obs)
+            # masked_image = mask_with_random_bbox_zero(rbg_image, mask, excluded_mask, pad=3, margin=10)
 
 
             image = masked_image

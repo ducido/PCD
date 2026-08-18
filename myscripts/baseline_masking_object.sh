@@ -4,13 +4,13 @@ source .venv/bin/activate
 module load gcc/13.2.0
 module load ffmpeg/7.0.2
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0,1
 
 BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=1
-result_root="./results_4gpu/default/baseline_masking_bbox_object"
+num_gpus=2
+result_root="./results_4gpu_rebuttal/default/baseline_masking_bbox_object"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")

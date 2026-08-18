@@ -4,20 +4,20 @@ module load gcc/13.2.0
 module load ffmpeg/7.0.2
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-export MPLCONFIGDIR=/netscratch/duynguyen/.cache/matplotlib
-export TORCH_EXTENSIONS_DIR=/netscratch/duynguyen/.cache/torch_extensions
+# export MPLCONFIGDIR=/netscratch/duynguyen/.cache/matplotlib
+# export TORCH_EXTENSIONS_DIR=/netscratch/duynguyen/.cache/torch_extensions
 
-BASE_DIR="/netscratch/duynguyen/Research/duc/PCD/simpler_env/policies/pizero"
-# BASE_DIR="/media/caduser/MyBook_2/DATA/minhduc/PCD/simpler_env/policies/pizero"
+# BASE_DIR="/netscratch/duynguyen/Research/duc/PCD/simpler_env/policies/pizero"
+BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-M_action_horizon=6
+M_action_horizon=4
 num_gpus=4
 n_trajs=100
-result_root="./results_4gpu/default/knn_topK_long_motion_${M_action_horizon}_bbox"
+result_root="./results_4gpu_new/default/knn_topK_long_delta_motion_${M_action_horizon}_shape"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 12 knn_k 5 top_k 5"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 12 knn_k 3 top_k 3"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
@@ -27,11 +27,11 @@ tasks=(
     "google_robot_move_near"
     "google_robot_open_drawer"
     "google_robot_pick_coke_can"
-    # "widowx_carrot_on_plate"
-    # "widowx_put_eggplant_in_basket"
-    # "widowx_spoon_on_towel"
-    # "widowx_stack_cube"
-    # "google_robot_place_apple_in_closed_top_drawer"
+    "widowx_carrot_on_plate"
+    "google_robot_place_apple_in_closed_top_drawer"
+    "widowx_put_eggplant_in_basket"
+    "widowx_spoon_on_towel"
+    "widowx_stack_cube"
 )
 
 

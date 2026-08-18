@@ -361,7 +361,7 @@ class ParallelRunner:
         info.update(stat_final(step_infos))
         success = info['success']
         self.logger.info(f"Episode {episode} finished with success {success}.")
-        # write_video(frames, f"{self.result_dir}/episode_{episode}_success_{success}.gif")
+        write_video(frames, f"{self.result_dir}/episode_{episode}_success_{success}.gif")
         return info
     
     def build_episode(self, gpu_id, show_detail):

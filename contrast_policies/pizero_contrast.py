@@ -71,34 +71,6 @@ class PiZeroContrastInference(PiZeroInference):
 
     @torch.no_grad()
     def base_best_of_N_smooth_step(self, image, instruction, proprio, M_action_horizon):
-        '''
-        input_ids torch.Size([1, 276])
-        pixel_values torch.Size([1, 3, 224, 224])
-        vlm_position_ids torch.Size([1, 276])
-        proprio_position_ids torch.Size([1, 1])
-        action_position_ids torch.Size([1, 4])
-        proprios torch.Size([1, 1, 8])
-        image_text_proprio_mask torch.Size([1, 1, 277, 277])
-        action_mask torch.Size([1, 1, 4, 281])
-        '''
-
-        self.model._orig_mod.horizon_steps = 4
-        self.model._orig_mod.num_action_tokens = 4
-        self.model._orig_mod.total_num_tokens = (
-            self.model._orig_mod.max_image_text_tokens
-            + self.model._orig_mod.num_proprio_tokens
-            + self.model._orig_mod.num_action_tokens
-        )
-        self.model.horizon_steps = 4
-        self.model.num_action_tokens = 4
-        self.model.total_num_tokens = (
-            self.model.max_image_text_tokens
-            + self.model.num_proprio_tokens
-            + self.model.num_action_tokens
-        )
-        inputs = self.preprocess_inputs(image, instruction, proprio)
-        N_actions = self.forward_actions(inputs)
-
         self.model._orig_mod.horizon_steps = M_action_horizon
         self.model._orig_mod.num_action_tokens = M_action_horizon
         self.model._orig_mod.total_num_tokens = (
@@ -129,57 +101,10 @@ class PiZeroContrastInference(PiZeroInference):
         # contrast_actions = self.forward_actions(contrast_inputs)
         M_actions = self.M_action_horizon_forward_actions(M_inputs, M_action_horizon=M_action_horizon)
 
-        def jerk_smoothest_action(M_actions):
-            """
-            M_actions: torch.Tensor of shape (C, T, D)
 
-            Returns:
-                best_idx: int
-                best_action: (T, D)
-                jerk_rms: (C,)
-            """
-            print(M_actions.shape)
+        best_smooth_action, _, _ = smoothest_delta_action(M_actions)
 
-            assert M_actions.ndim == 3
-            C, T, D = M_actions.shape
-            assert T >= 4, "Need at least 4 timesteps to compute jerk"
-
-            # Normalize M_actions
-            std = M_actions.std(dim=(0,1), keepdim=True)
-            norm_M_actions = M_actions / (std + 1e-6)
-
-            # Compute jerk (C, T-3, D)
-            jerk = (
-                norm_M_actions[:, 3:, :-1]
-                - 3 * norm_M_actions[:, 2:-1, :-1]
-                + 3 * norm_M_actions[:, 1:-2, :-1]
-                - norm_M_actions[:, :-3, :-1]
-            )
-
-            # ||j||^2 over action dim → (C, T-3)
-            jerk_sq = (jerk ** 2).sum(dim=-1)
-
-            # mean over time → (C,)
-            jerk_mean = jerk_sq.mean(dim=1)
-
-            # RMS → (C,)
-            jerk_rms = torch.sqrt(jerk_mean + 1e-8)  # tránh nan
-
-            # best candidate
-            best_idx = torch.argmin(jerk_rms)
-            best_action = M_actions[best_idx:best_idx+1]
-
-            return best_action
-
-        best_smooth_action_M = jerk_smoothest_action(M_actions)
-
-        def select_best_from_N(N, M_best):
-            ref = M_best[:,:4]
-            dist = ((N - ref)**2).sum(dim=(-1, -2))
-            idx = torch.argmin(dist)
-            return N[idx:idx+1]
-
-        raw_actions = select_best_from_N(N_actions, best_smooth_action_M)
+        raw_actions = best_smooth_action[:,:4]
         if self.clip_value is not None:
             raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
         
@@ -334,13 +259,13 @@ class PiZeroContrastInference(PiZeroInference):
         
         _, _, top_indices = cd_with_knn_topK(actions[:,:4], contrast_actions[:,:4]) # should have shape of (top_k,4,7)
         actions = actions[top_indices]
-        _, _, best_idx = jerk_smoothest_action(actions)
+        _, _, best_idx = smoothest_delta_action(actions)
         best_action = actions[best_idx:best_idx+1][:,:4]
 
         raw_actions = best_action
         if self.clip_value is not None:
             raw_actions = torch.clamp(raw_actions, -self.clip_value, self.clip_value)
-        
+
         actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
         return raw_actions, actions, {}
 
@@ -750,3 +675,51 @@ def jerk_smoothest_action(long_action):
     best_idx = torch.argmin(jerk_rms)
     best_action = long_action[best_idx:best_idx+1]
     return best_action, jerk_rms, best_idx
+
+def smoothest_delta_action(
+    actions,
+    lambda_energy=0.05,
+    ignore_last_dim=True,
+):
+    """
+    Args:
+        actions: (N, T, D)  # delta action
+        lambda_energy: tránh chọn action gần 0
+        ignore_last_dim: bỏ gripper nếu cần
+
+    Returns:
+        best_action: (1, T, D)
+        scores: (N,)
+        best_idx: int
+    """
+    assert actions.ndim == 3
+    N, T, D = actions.shape
+    assert T >= 3, "Need at least 3 timesteps"
+
+    print(" DELTA SMOOTHNESS")
+
+    # optionally ignore last dim (e.g. gripper)
+    if ignore_last_dim:
+        act = actions[..., :-1]
+    else:
+        act = actions
+
+    # normalize per-dimension (important!)
+    std = act.std(dim=(0, 1), keepdim=True)
+    act = act / (std + 1e-6)
+
+    # --- smoothness: 2nd difference ---
+    acc = act[:, 2:] - 2 * act[:, 1:-1] + act[:, :-2]   # (N, T-2, D)
+    acc_sq = (acc ** 2).sum(dim=-1)                    # (N, T-2)
+    smoothness = acc_sq.mean(dim=1)                    # (N,)
+
+    # --- energy term (avoid trivial zero action) ---
+    energy = (act ** 2).sum(dim=-1).mean(dim=1)        # (N,)
+
+    # --- final score (lower is better) ---
+    scores = smoothness + lambda_energy * energy
+
+    best_idx = torch.argmin(scores)
+    best_action = actions[best_idx:best_idx+1]
+
+    return best_action, scores, best_idx
