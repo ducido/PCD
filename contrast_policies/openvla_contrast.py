@@ -24,6 +24,16 @@ class OpenVLAContrastInference(OpenVLAInference):
         raw_actions = raw_actions[None]
         raw_actions, actions = self.postprocess_actions(raw_actions)
         return raw_actions, actions, aux_info
+
+    def knn_topK_motion_step(self, image, contrast_image, instruction=None, *args, **kwargs):
+        inputs = self.process_inputs(image, task_description=instruction)
+        contrast_inputs = self.process_inputs(contrast_image, task_description=instruction)
+        breakpoint()
+        raw_actions, aux_info = self.predict_action(inputs, contrast_inputs, unnorm_key=self.unnorm_key, do_sample=False)
+        raw_actions = raw_actions[None]
+        raw_actions, actions = self.postprocess_actions(raw_actions)
+        return raw_actions, actions, aux_info
+    
     
     def process_inputs(self, image, task_description=None):
         if task_description is not None:

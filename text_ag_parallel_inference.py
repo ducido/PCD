@@ -237,6 +237,10 @@ class ParallelRunner:
         predicted_terminated, success, truncated = False, False, False
         timestep = 0
         frames = []
+        ooi_frames = []
+        contrast_frames = []
+        inpaint_frames = []
+        states = []
         step_infos = []
 
         # get initial image
@@ -249,7 +253,12 @@ class ParallelRunner:
                 frames.append(tile_images([image, image]))
             else:
                 contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger,  is_inpaint=False)
-                frames.append(tile_images([image, contrast_image]))          
+                frames.append(tile_images([image, contrast_image]))  
+                # frames.append(image)
+                # contrast_frames.append(contrast_image)
+                # ooi_frames.append(ooi_mask)       
+                # inpaint_frames.append(inpaint_image)
+                # states.append({'prompt': instruction, 'states': obs['agent']['eef_pos']}) 
         
         # run episode
         while not (predicted_terminated or truncated):
@@ -298,7 +307,6 @@ class ParallelRunner:
                     # contrast_proprio = torch.randn_like(torch.tensor(proprio))
                     raw_action, actions, aux_info = policy.masking_state_knn_step(image, instruction, proprio=proprio, contrast_proprio=contrast_proprio)
                 elif self.M_action_horizon and self.knn_topK_motion:
-                    # breakpoint()
                     self.logger.info(f"KNN top-K Long-term motion with M action horizon {self.M_action_horizon}")
                     raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction=instruction, proprio=obs['agent']['eef_pos'], M_action_horizon=self.M_action_horizon)
                 elif self.M_action_horizon:
@@ -330,7 +338,14 @@ class ParallelRunner:
                     else:
                         contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, is_inpaint=False)
                         frames.append(tile_images([image, contrast_image]))          
-        
+                        # frames.append(image)
+                        # contrast_frames.append(contrast_image)
+                        # ooi_frames.append(ooi_mask)     
+                        # inpaint_frames.append(inpaint_image)
+                        # states.append({'prompt': instruction, 'states': obs['agent']['eef_pos']}) 
+
+
+                
                     # write_images([image, contrast_image], f"visualize/test.jpg")
 
 
@@ -361,7 +376,15 @@ class ParallelRunner:
         info.update(stat_final(step_infos))
         success = info['success']
         self.logger.info(f"Episode {episode} finished with success {success}.")
-        write_video(frames, f"{self.result_dir}/episode_{episode}_success_{success}.gif")
+        write_video(frames, f"{self.result_dir}/episode_{episode}.gif")
+        if contrast_frames:
+            write_video(contrast_frames, f"{self.result_dir}/episode_{episode}_contrast.gif")
+        if ooi_frames:
+            write_video(ooi_frames, f"{self.result_dir}/episode_{episode}_ooi.gif")
+        if inpaint_frames:
+            write_video(inpaint_frames, f"{self.result_dir}/episode_{episode}_inpaint.gif")
+        if states:
+            np.save(f"{self.result_dir}/episode_{episode}_states.npy", np.array(states))
         return info
     
     def build_episode(self, gpu_id, show_detail):

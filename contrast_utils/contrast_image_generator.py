@@ -212,6 +212,8 @@ class ContrastImageGenerator:
             mask, excluded_mask = self.get_mask_by_gt(obs, reverse_mask=False)
         else:
             mask, excluded_mask = self.get_mask_by_predictor(obs, reverse_mask=False)
+        
+        # inpaint_image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
 
         if is_inpaint:
             image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
@@ -236,9 +238,14 @@ class ContrastImageGenerator:
             # rbg_image = self._get_rgb_image(obs)
             # masked_image = mask_with_random_bbox_zero(rbg_image, mask, excluded_mask, pad=3, margin=10)
 
+            ## Making ooi mask
+            # ooi_mask = np.zeros_like(mask)
+            # ooi_mask[mask == 1] = 1
+            # ooi_mask[excluded_mask == 1] = 1
+            # ooi_mask = np.stack([ooi_mask] * 3, axis=-1)
 
             image = masked_image
-        return image
+        return image #, ooi_mask, inpaint_image
     
     def reset(self):
         self.task_description = None

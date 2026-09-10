@@ -7,12 +7,12 @@ from .kde_contrast_decoding import ContrastDecoding
 class PiZeroContrastInference(PiZeroInference):
     def __init__(self, 
                  alpha=0.1,
-                 num_repeats=64,
+                 num_repeats=24,
                  bandwidth_factor=1.0,
                  keep_threshold=0.5,
                  ag_weight=0.5,
-                 knn_k=10,
-                 top_k=5,
+                 knn_k=3,
+                 top_k=3,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
@@ -33,7 +33,7 @@ class PiZeroContrastInference(PiZeroInference):
         return raw_actions, actions
     
     @torch.no_grad()
-    def step(self, image, contrast_image, instruction, proprio):
+    def pcd_step(self, image, contrast_image, instruction, proprio):
         self.model._orig_mod.horizon_steps = 8
         self.model._orig_mod.num_action_tokens = 8
         self.model._orig_mod.total_num_tokens = (
@@ -162,7 +162,7 @@ class PiZeroContrastInference(PiZeroInference):
 
             # kNN in B
             dist_AB = torch.cdist(A, B, p=2) ** 2   # (N, N)
-            print("knn_k:", self.knn_k)
+            # print("knn_k:", self.knn_k)
             knn_dist_AB, _ = torch.topk(dist_AB, k=self.knn_k, largest=False, dim=1)
             R_B = knn_dist_AB.sum(dim=1)  # (N,)
 
@@ -227,7 +227,7 @@ class PiZeroContrastInference(PiZeroInference):
             return:
                 best_action: (1, T, D)
             """
-            print(f"Best-of-N KNN k = {self.knn_k}, top_k = {self.top_k}")
+            # print(f"Best-of-N KNN k = {self.knn_k}, top_k = {self.top_k}")
 
             N = actions.shape[0]
             C = contrast_actions.shape[0]

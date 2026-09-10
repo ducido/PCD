@@ -1,0 +1,50 @@
+# One-shot ISS + NMR configuration for one prepared X-ICM task episode.
+
+defaults:
+  - override hydra/job_logging: disabled
+  - override hydra/hydra_logging: disabled
+  - _self_
+
+data:
+  root: eval_logs/gg_robot/baseline_nenvs1_eps3_ah1/google_robot_pick_coke_can/videos
+  task: google_robot_pick_coke_can
+  episode: 0
+  episode_dir: null
+  require_state: true
+
+policy:
+  checkpoint_dir: /projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/Isaac-GR00T/CP/GR00T-N1.6-fractal
+  config_name: pi05_xicm
+  cuda_visible_devices: ${oc.env:CUDA_VISIBLE_DEVICES,0}
+  algo: base
+
+output:
+  dir: outputs/${data.task}/${data.episode}
+
+iss:
+  batch_size: 64
+  n_masks: 500
+  p_keep: 0.3
+  grid_size: [7, 7]
+  blur_sigma: 10.0
+  time_stride: 10
+  seed: 0
+
+nmr:
+  k_percent: 10.0
+  k_pixels: 0
+  normalize: joint
+
+viz:
+  fps: 15
+  alpha: 0.6
+  snapshot_steps: null
+  top_k_percent: null
+  skip_video: false
+
+hydra:
+  output_subdir: null
+  job:
+    chdir: false
+  run:
+    dir: .

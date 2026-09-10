@@ -13,11 +13,11 @@ export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
 M_action_horizon=4
 num_gpus=4
-n_trajs=100
-result_root="./results_4gpu_new/default/knn_topK_long_delta_motion_${M_action_horizon}_shape"
+n_trajs=50
+result_root="./results_4gpu_new/default/knn_topK_long_delta_motion_${M_action_horizon}_bbox"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 12 knn_k 3 top_k 3"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 5 knn_k 5 top_k 3"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
