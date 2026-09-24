@@ -53,6 +53,7 @@ class ParallelRunner:
                  ag_no_cd=False,
                  cd_in_ag=False,
                  cd_knn=False,
+                 negative_mode=None,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -65,6 +66,7 @@ class ParallelRunner:
         self.ag_no_cd = ag_no_cd
         self.cd_in_ag = cd_in_ag
         self.cd_knn = cd_knn
+        self.negative_mode = negative_mode
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -213,7 +215,7 @@ class ParallelRunner:
         if not self.contrast:
             frames.append(image)
         else:
-            contrast_image = self.contrast_image_generator.generate(obs, instruction, self.logger, is_inpaint=False)
+            contrast_image = self.contrast_image_generator.generate(obs, instruction, self.logger, negative_mode=self.negative_mode)
             frames.append(tile_images([image, contrast_image]))
         
         # run episode
@@ -224,14 +226,14 @@ class ParallelRunner:
                 self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                # self.logger.info("Baseline masking bbox zero")
-                # raw_action, actions = policy.baseline_step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                self.logger.info(F"Baseline {self.negative_mode}")
+                raw_action, actions = policy.baseline_step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
                 
                 # self.logger.info("Baseline inpainting")
                 # raw_action, actions = policy.baseline_step(contrast_image, instruction, proprio=obs['agent']['eef_pos'])
 
-                self.logger.info("PCD masking bbox zero")
-                raw_action, actions, _ = policy.pcd_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                # self.logger.info("PCD masking bbox zero")
+                # raw_action, actions, _ = policy.pcd_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
  
             if not isinstance(actions, list):
                 actions = [actions]
@@ -246,7 +248,7 @@ class ParallelRunner:
                     frames.append(image)
                     # write_images([image], f"visualize/test.jpg")
                 else:
-                    contrast_image = self.contrast_image_generator.generate(obs, instruction, self.logger, is_inpaint=False)
+                    contrast_image = self.contrast_image_generator.generate(obs, instruction, self.logger, negative_mode=self.negative_mode)
                     frames.append(tile_images([image, contrast_image]))
                     # write_images([image, contrast_image], f"visualize/test.jpg")
 
@@ -439,6 +441,7 @@ def main(args):
                                       ag_no_cd=args.ag_no_cd,
                                       cd_in_ag=args.cd_in_ag,
                                       cd_knn=args.cd_knn,
+                                      negative_mode=args.negative_mode,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -452,6 +455,7 @@ def main(args):
                                 ag_no_cd=args.ag_no_cd,
                                 cd_in_ag=args.cd_in_ag,
                                 cd_knn=args.cd_knn,
+                                negative_mode=args.negative_mode,
                                 opts=args.opts)
     runner.run()
 
@@ -469,6 +473,7 @@ if __name__ == '__main__':
     parser.add_argument("--ag-no-cd", action="store_true")
     parser.add_argument("--cd-in-ag", action="store_true")
     parser.add_argument("--cd-knn", action="store_true")
+    parser.add_argument("--negative-mode", type=str)
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()

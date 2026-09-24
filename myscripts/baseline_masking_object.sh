@@ -4,18 +4,18 @@ source .venv/bin/activate
 module load gcc/13.2.0
 module load ffmpeg/7.0.2
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 BASE_DIR="/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/simpler_env/policies/pizero"
 export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 
-num_gpus=1
-result_root="./results_4gpu_new/default/baseline_zeros_bbox_object"
+num_gpus=4
+result_root="./results_4gpu_new/default/baseline_background_change"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
 tasks=(
-    "google_robot_pick_coke_can"
+    # "google_robot_pick_coke_can"
     "google_robot_move_near"
     "google_robot_close_drawer"
     "google_robot_open_drawer"
@@ -34,6 +34,7 @@ for i in "${!policies[@]}"; do
 
         python ag_parallel_inference_noinpaint.py \
             --contrast \
+            --negative-mode background_change \
             --num-gpus $num_gpus \
             --n-trajs 20 \
             --result-root $result_root \

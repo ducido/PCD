@@ -77,6 +77,8 @@ class ParallelRunner:
                  masking_state=False,
                  M_action_horizon=False,
                  knn_topK_motion=False,
+                 negative_mode=None,
+                 ood_mode=None,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -96,6 +98,8 @@ class ParallelRunner:
         self.masking_state = masking_state
         self.M_action_horizon = M_action_horizon
         self.knn_topK_motion = knn_topK_motion
+        self.negative_mode = negative_mode
+        self.ood_mode = ood_mode
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -243,16 +247,19 @@ class ParallelRunner:
         states = []
         step_infos = []
 
+
         # get initial image
         image = get_image_from_maniskill2_obs_dict(env, obs)  # np.ndarray of shape (H, W, 3), uint8
-        
+        image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, ood_mode=self.ood_mode)
+        key, camera_name = self.contrast_image_generator._get_key_camera_images(obs)
+        obs[key][camera_name]['rgb'] = image
         if not self.contrast:
             frames.append(image)
         else:
             if self.negative_prompt_pcd or self.negative_prompt_knn or self.masking_state:
                 frames.append(tile_images([image, image]))
             else:
-                contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger,  is_inpaint=False)
+                contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, negative_mode=self.negative_mode)
                 frames.append(tile_images([image, contrast_image]))  
                 # frames.append(image)
                 # contrast_frames.append(contrast_image)
@@ -329,6 +336,10 @@ class ParallelRunner:
                                                                                  action["rot_axangle"], 
                                                                                  action["gripper"]]))
                 image = get_image_from_maniskill2_obs_dict(env, obs)
+                image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, ood_mode=self.ood_mode)
+                key, camera_name = self.contrast_image_generator._get_key_camera_images(obs)
+                obs[key][camera_name]['rgb'] = image
+
                 if not self.contrast:
                     frames.append(image)
                     # write_images([image], f"visualize/test.jpg")
@@ -336,7 +347,7 @@ class ParallelRunner:
                     if self.negative_prompt_pcd or self.negative_prompt_knn or self.masking_state:
                         frames.append(tile_images([image, image]))
                     else:
-                        contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, is_inpaint=False)
+                        contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, negative_mode=self.negative_mode)
                         frames.append(tile_images([image, contrast_image]))          
                         # frames.append(image)
                         # contrast_frames.append(contrast_image)
@@ -552,8 +563,10 @@ def main(args):
                                       masking_state=args.masking_state,
                                       M_action_horizon=args.M_action_horizon,
                                       knn_topK_motion=args.knn_topK_motion,
+                                      negative_mode=args.negative_mode,
+                                      ood_mode=args.ood_mode,
                                       opts=args.opts)
-    else:
+    else:   
         runner = ParallelRunner(num_gpus=args.num_gpus,
                                 policy=args.policy,
                                 checkpoint=args.checkpoint,
@@ -572,6 +585,8 @@ def main(args):
                                 masking_state=args.masking_state,
                                 M_action_horizon=args.M_action_horizon,
                                 knn_topK_motion=args.knn_topK_motion,
+                                negative_mode=args.negative_mode,
+                                ood_mode=args.ood_mode,
                                 opts=args.opts)
     runner.run()
 
@@ -596,6 +611,8 @@ if __name__ == '__main__':
     parser.add_argument("--masking-state", action="store_true")
     parser.add_argument("--M-action-horizon", type=int, default=None)
     parser.add_argument("--knn-topK-motion", action="store_true")
+    parser.add_argument("--negative-mode", type=str)
+    parser.add_argument("--ood-mode", type=str)
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()

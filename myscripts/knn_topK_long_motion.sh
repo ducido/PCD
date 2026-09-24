@@ -14,24 +14,26 @@ export PYTHONPATH="$BASE_DIR/open_pi_zero:$BASE_DIR:$(dirname "$0"):$PYTHONPATH"
 M_action_horizon=4
 num_gpus=4
 n_trajs=50
-result_root="./results_4gpu_new/default/knn_topK_long_delta_motion_${M_action_horizon}_bbox"
+ood_mode='background_change'
+negative_mode='zeros_bbox'
+result_root="./results_4gpu_new/default/sdn_longah_${M_action_horizon}_OodMode_${ood_mode}_NegativeMode_${negative_mode}"
 
 # search_opts="by point_tracking,box_tracking,grounded_sam_tracking alpha 0.2 num_repeats 24"
-search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 5 knn_k 5 top_k 3"
+search_opts="by grounded_sam_tracking alpha 0.2 num_repeats 12 knn_k 10 top_k 3"
 
 policies=("pizero")
 checkpoints=("pretrained/open-pi-zero")
 
 tasks=(
-    "google_robot_close_drawer"
-    "google_robot_move_near"
-    "google_robot_open_drawer"
-    "google_robot_pick_coke_can"
-    "widowx_carrot_on_plate"
-    "google_robot_place_apple_in_closed_top_drawer"
+    # "google_robot_close_drawer"
+    # "google_robot_move_near"
+    # "google_robot_open_drawer"
+    # "google_robot_pick_coke_can"
+    # "widowx_carrot_on_plate"
+    # "google_robot_place_apple_in_closed_top_drawer"
     "widowx_put_eggplant_in_basket"
-    "widowx_spoon_on_towel"
-    "widowx_stack_cube"
+    # "widowx_spoon_on_towel"
+    # "widowx_stack_cube"
 )
 
 
@@ -43,6 +45,8 @@ for i in "${!policies[@]}"; do
             --contrast \
             --knn-topK-motion \
             --M-action-horizon $M_action_horizon \
+            --negative-mode $negative_mode \
+            --ood-mode $ood_mode \
             --n-trajs $n_trajs \
             --num-gpus $num_gpus \
             --result-root $result_root \

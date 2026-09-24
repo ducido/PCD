@@ -73,6 +73,62 @@ def mask_with_bbox_zero(rbg_image, mask, pad=10):
 
     return masked_image
 
+def replace_background(
+    frame: np.ndarray,
+    background: np.ndarray,
+    mask: np.ndarray,
+    mask_is_background: bool = True,
+    feather: int = 0,
+) -> np.ndarray:
+    """Replace the background of a single frame.
+
+    Args:
+        frame:  uint8 image, (H, W, 3). The scene from your simulator.
+        background: uint8 image, (H, W, 3). Auto-resized to the frame if needed.
+        mask:   (H, W) array marking the background. Accepts bool, {0,1} or
+                {0,255} ints, or a soft float array in [0, 1]. Auto-resized to
+                the frame if needed.
+        mask_is_background: True  -> mask marks pixels to REPLACE (default).
+                            False -> mask marks the robot/objects; it's inverted.
+        feather: odd kernel size to blur the mask edge. 0 = hard edge.
+                 Try 3-5 at low resolution to avoid a jagged silhouette.
+
+    Returns:
+        uint8 (H, W, 3) frame with the background swapped.
+    """
+    frame = np.asarray(frame)
+    assert frame.ndim == 3 and frame.shape[2] == 3, f"frame must be (H,W,3), got {frame.shape}"
+    assert frame.dtype == np.uint8, f"frame must be uint8, got {frame.dtype}"
+
+    H, W = frame.shape[:2]
+
+    # --- background: resize to match the frame -----------------------------
+    background = np.asarray(background)
+    if background.shape[:2] != (H, W):
+        background = cv2.resize(background, (W, H), interpolation=cv2.INTER_LINEAR)
+
+    # --- mask: coerce to float (H, W, 1) in [0, 1] -------------------------
+    m = np.asarray(mask)
+    if m.ndim == 3:
+        m = m[..., 0] if m.shape[-1] == 1 else m[0]
+    is_hard = m.dtype == np.bool_ or np.issubdtype(m.dtype, np.integer)
+    m = m.astype(np.float32)
+    if is_hard and m.max() > 1.0:
+        m /= 255.0
+    if m.shape != (H, W):
+        m = cv2.resize(m, (W, H),
+                       interpolation=cv2.INTER_NEAREST if is_hard else cv2.INTER_LINEAR)
+    if not mask_is_background:
+        m = 1.0 - m
+    if feather > 0:
+        k = feather if feather % 2 == 1 else feather + 1
+        m = cv2.GaussianBlur(m, (k, k), 0)
+    alpha = np.clip(m, 0.0, 1.0)[..., None]
+
+    # --- composite ---------------------------------------------------------
+    out = frame.astype(np.float32) * (1 - alpha) + background.astype(np.float32) * alpha
+    return np.clip(out, 0, 255).astype(np.uint8)
+
 def mask_to_points(mask):
     if not mask.any():
         return None
@@ -173,6 +229,18 @@ def my_print(*args):
     if gpu_id == '0':
         print(args)
 
+BACKGROUND_DIR = '/projects/extern/kisski/kisski-spath/dir.project/VLA_Imit/PCD/hypersim'
+# os.listdir() returns arbitrary order; sort so we walk frame.0000 -> frame.0097 ascending.
+List_background = sorted(os.listdir(BACKGROUND_DIR))
+
+
+def load_background(name):
+    """Read one hypersim background by file name as (H, W, 3) uint8 RGB."""
+    path = name if os.path.isabs(name) else os.path.join(BACKGROUND_DIR, name)
+    img = cv2.imread(path, cv2.IMREAD_COLOR)
+    if img is None:
+        raise IOError(f"could not read background: {path}")
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)   # cv2 reads BGR
 
 class ContrastImageGenerator:
     def __init__(self, 
@@ -198,8 +266,9 @@ class ContrastImageGenerator:
         self.task_description = None
         self.predictor = None
         self.inpainter = build_inpainter(inpaint_mode)
+        self.bg_idx = 0   # walks List_background in ascending order, one per step
     
-    def generate(self, obs, task_description, logging=None, is_inpaint=True):
+    def generate(self, obs, task_description, logging=None, negative_mode=None, ood_mode=None):
         if task_description != self.task_description:
             self.reset_mask_and_keep_object_names(task_description)
             self.task_description = task_description
@@ -215,9 +284,42 @@ class ContrastImageGenerator:
         
         # inpaint_image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
 
-        if is_inpaint:
+
+        if ood_mode == 'background_change':
+            # rgb
+            rgb = self._get_rgb_image(obs)
+
+            # mask
+            ooi_mask = np.zeros_like(mask)
+            ooi_mask[mask == 1] = 1
+            ooi_mask[excluded_mask == 1] = 1
+            bg_mask = ooi_mask == 0   # (H, W): True where the background is
+
+            # background: next hypersim image, ascending file order, wrapping around
+            background = load_background(List_background[self.bg_idx % len(List_background)])
+            self.bg_idx += 1
+
+            image = replace_background(rgb, background, bg_mask)
+
+        if negative_mode == 'inpaint' :
             image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
-        else:
+        elif negative_mode == 'background_change':
+
+            # rgb
+            rgb = self._get_rgb_image(obs)
+
+            # mask
+            ooi_mask = np.zeros_like(mask)
+            ooi_mask[mask == 1] = 1
+            ooi_mask[excluded_mask == 1] = 1
+            bg_mask = ooi_mask == 0   # (H, W): True where the background is
+
+            # background: next hypersim image, ascending file order, wrapping around
+            background = load_background(List_background[self.bg_idx % len(List_background)])
+            self.bg_idx += 1
+
+            image = replace_background(rgb, background, bg_mask)
+        elif negative_mode == 'zeros_bbox':
 
             # logging.info("No inpainting, masking objects keep shape")
             # rbg_image = self._get_rgb_image(obs)
@@ -249,6 +351,7 @@ class ContrastImageGenerator:
     
     def reset(self):
         self.task_description = None
+        self.bg_idx = 0
         
     def reset_mask_and_keep_object_names(self, task_description):
         self.mask_objects = get_objects_from_instruction(task_description, self.get_all_parts)
@@ -384,3 +487,24 @@ class ContrastImageGenerator:
         
         key = "image" if self.version == 2 else "sensor_data"
         return obs[key][camera_name]
+
+    def _get_key_camera_images(self, obs):
+        robot = self.env.unwrapped.robot_uid if self.version == 2 else self.env.unwrapped.robot_uids
+        if not isinstance(robot, list):
+            robot = ''.join(robot)
+        
+        camera_name = self.camera_name
+        if camera_name is None:
+            if "google_robot" in robot:
+                camera_name = "overhead_camera"
+            elif "widowx" in robot:
+                camera_name = "3rd_view_camera"
+            elif "panda" in robot:
+                camera_name = "base_camera"
+            elif "panda_wristcam" in robot:
+                camera_name = "base_camera"
+            else:
+                raise NotImplementedError()
+        
+        key = "image" if self.version == 2 else "sensor_data"
+        return key, camera_name
