@@ -9,45 +9,6 @@ from .mask_predictors import build_predictor, predict_masks_with_predictor
 from .properties import _ROBOT_NAMES
 from .utils import dilate_mask, visualize_multi_objects
 
-
-def mask_with_bbox_noise(rbg_image, mask, pad=10):
-    """
-    rbg_image: (H, W, 3)
-    mask: (H, W) binary (0/1 hoặc bool)
-    pad: số pixel mở rộng bbox
-    """
-
-    masked_image = rbg_image.copy()
-
-    ys, xs = np.where(mask > 0)
-
-    # nếu không có object thì return ảnh gốc
-    if len(xs) == 0 or len(ys) == 0:
-        return masked_image
-
-    # bounding box
-    x_min, x_max = xs.min(), xs.max()
-    y_min, y_max = ys.min(), ys.max()
-
-    # padding
-    H, W = mask.shape
-    x_min = max(0, x_min - pad)
-    x_max = min(W - 1, x_max + pad)
-    y_min = max(0, y_min - pad)
-    y_max = min(H - 1, y_max + pad)
-
-    # tạo noise
-    noise = np.random.randint(
-        0, 256,
-        size=(y_max - y_min + 1, x_max - x_min + 1, 3),
-        dtype=np.uint8
-    )
-
-    # fill rectangle bằng noise
-    masked_image[y_min:y_max+1, x_min:x_max+1] = noise
-
-    return masked_image
-
 def mask_with_bbox_zero(rbg_image, mask, pad=10):
     if mask is None:
         # không có mask → return ảnh gốc
@@ -199,7 +160,7 @@ class ContrastImageGenerator:
         self.predictor = None
         self.inpainter = build_inpainter(inpaint_mode)
     
-    def generate(self, obs, task_description, logging=None, is_inpaint=True):
+    def generate(self, obs, task_description, logging=None, negative_mode=None):
         if task_description != self.task_description:
             self.reset_mask_and_keep_object_names(task_description)
             self.task_description = task_description
@@ -213,30 +174,17 @@ class ContrastImageGenerator:
         else:
             mask, excluded_mask = self.get_mask_by_predictor(obs, reverse_mask=False)
 
-        if is_inpaint:
+        if negative_mode == 'inpaint':
             image = self.inpainter.inpaint(self._get_rgb_image(obs), mask, excluded_mask)
-        else:
-
-            # logging.info("No inpainting, masking objects keep shape")
-            # rbg_image = self._get_rgb_image(obs)
-            # masked_image = np.where(mask[..., None] == 0, rbg_image, 0)
-
-            # logging.info("No inpainting, masking objects with bbox noise")
-            # rbg_image = self._get_rgb_image(obs)
-            # masked_image = mask_with_bbox_noise(rbg_image, mask, pad=10)
-            # image = masked_image
-
-            logging.info("No inpainting, masking objects with bbox zero pad 3")
-            rbg_image = self._get_rgb_image(obs)
-            masked_image = mask_with_bbox_zero(rbg_image, mask, pad=3)
-            # logging.info("No inpainting, masking GRIPPER with bbox zero pad 15")
-            # masked_image = mask_with_bbox_zero(rbg_image, excluded_mask, pad=15)
-
-            # print("No inpainting, zeroing a random bbox away from mask/excluded_mask")
-            # rbg_image = self._get_rgb_image(obs)
-            # masked_image = mask_with_random_bbox_zero(rbg_image, mask, excluded_mask, pad=3, margin=10)
-
-
+        elif negative_mode == 'zeros_bbox':
+            logging.info("Masking objects with bbox zero pad 3")
+            rgb_image = self._get_rgb_image(obs)
+            masked_image = mask_with_bbox_zero(rgb_image, mask, pad=3)
+            image = masked_image
+        elif negative_mode == 'random_zeros_bbox':
+            print("zeroing a random bbox away from mask/excluded_mask")
+            rgb_image = self._get_rgb_image(obs)
+            masked_image = mask_with_random_bbox_zero(rgb_image, mask, excluded_mask, pad=3, margin=10)
             image = masked_image
         return image
     

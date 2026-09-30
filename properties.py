@@ -1,37 +1,3 @@
-RT1_CONFIG = dict(
-    saved_model_path="pretrained/rt_1_x",
-    lang_embed_model_path="https://tfhub.dev/google/universal-sentence-encoder-large/5",
-    image_width=320,
-    image_height=256,
-    action_scale=1.0,
-    policy_setup="google_robot",
-)
-        
-OCTO_CONFIG = dict(
-    model=None,
-    dataset_id=None,
-    model_type='octo-base',
-    model_step=None,
-    policy_setup='widowx_bridge',
-    horizon=2,
-    pred_action_horizon=4,
-    exec_horizon=1,
-    image_size=256,
-    action_scale=1.0,
-    init_rng=0,
-)
-
-OPENVLA_CONFIG = dict(
-    saved_model_path='openvla-7b',
-    unnorm_key=None,
-    policy_setup='google_robot',
-    horizon=1,
-    pred_action_horizon=1,
-    exec_horizon=1,
-    image_size=[224, 224],
-    action_scale=1.0,
-)
-
 OPEN_PIZERO_CONFIG = dict(
     cfg_dir='simpler_env/policies/pizero/open_pi_zero/config/eval',
     use_ddp=False,
@@ -49,36 +15,16 @@ CONTRAST_IMAGE_CONFIG = dict(
     get_all_parts=False,
 )
 
-CONTRAST_OCTO_CONFIG = dict(
-    alpha=0.2,
-    num_repeats=24,
-    bandwidth_factor=2.0,
-    keep_threshold=0.5,
-)
-
-CONTRAST_OPENVLA_CONFIG = dict(
-    alpha=0.2,
-)
 
 CONTRAST_OPEN_PIZERO_CONFIG = dict(
-    alpha=0.2,
-    num_repeats=20,
-    bandwidth_factor=1.0,
-    keep_threshold=0.5,
-)
-
-MY_CONTRAST_OPEN_PIZERO_CONFIG = dict(
-    alpha=0.2,
-    num_repeats=20,
-    bandwidth_factor=1.0,
-    keep_threshold=0.5,
-    ag_weight=0.5,
-    knn_k=5,
-    top_k=5
+    num_repeats=12,
+    knn_k=6,
+    top_M=3,
+    long_ah=4
 )
 
 
-def get_policy_config(policy, checkpoint, task, opts, contrast, ag=False, cd_knn=False, negative_prompt_knn=False, negative_prompt_knn_and_inpainting=False, negative_prompt_knn_plus_inpainting=False, masking_state=False, knn_topK_motion=False):
+def get_policy_config(policy, checkpoint, task, opts, algo):
     if policy == 'rt1':
         config = RT1_CONFIG
         config['saved_model_path'] = checkpoint
@@ -103,20 +49,10 @@ def get_policy_config(policy, checkpoint, task, opts, contrast, ag=False, cd_knn
         raise NotImplementedError
 
     # update config if contrast policy is used
-    if contrast:
+    if algo in ['grounding_and_smooth', 'grounding', 'smooth']:
         from properties import CONTRAST_OCTO_CONFIG, CONTRAST_OPENVLA_CONFIG
-        if policy == 'octo':
-            config.update(CONTRAST_OCTO_CONFIG)
-        elif policy == 'openvla':
-            config.update(CONTRAST_OPENVLA_CONFIG)
-        elif policy == 'pizero':
-            if ag or cd_knn or negative_prompt_knn or negative_prompt_knn_and_inpainting or negative_prompt_knn_plus_inpainting or masking_state or knn_topK_motion:
-                config.update(MY_CONTRAST_OPEN_PIZERO_CONFIG)
-            else:
-                config.update(CONTRAST_OPEN_PIZERO_CONFIG)
-        else:
-            raise NotImplementedError()
-    
+        config.update(CONTRAST_OPEN_PIZERO_CONFIG)
+
     # update opts
     for k, v in opts.items():
         if k in config:

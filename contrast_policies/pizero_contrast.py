@@ -5,40 +5,39 @@ from simpler_env.policies.pizero.pizero_model import PiZeroInference
 
 class PiZeroContrastInference(PiZeroInference):
     def __init__(self, 
-                 num_repeats=64,
-                 keep_threshold=0.5,
-                 ag_weight=0.5,
+                 num_repeats=12,
                  knn_k=10,
-                 top_k=5,
+                 top_M=3,
+                 long_ah=4,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
         self.num_repeats = num_repeats
-        self.ag_weight = ag_weight
         self.knn_k = knn_k
-        self.top_k = top_k
+        self.top_M = top_M
+        self.long_ah = long_ah
 
         # set to None to disable clipping in infer_action function
         self.clip_value = self.model.final_action_clip_value
 
     @torch.no_grad()
-    def baseline_step(self, image, instruction, proprio):
+    def step(self, image, instruction, proprio):
         inputs = self.preprocess_inputs(image, instruction, proprio)
         raw_actions = self.forward_actions(inputs)
         actions = self.env_adapter.postprocess(raw_actions[0].float().cpu().numpy())
         return raw_actions, actions
     
     @torch.no_grad()
-    def base_best_of_N_smooth_step(self, image, instruction, proprio, M_action_horizon):
-        self.model._orig_mod.horizon_steps = M_action_horizon
-        self.model._orig_mod.num_action_tokens = M_action_horizon
+    def best_of_N_smooth_step(self, image, instruction, proprio):
+        self.model._orig_mod.horizon_steps = self.long_ah
+        self.model._orig_mod.num_action_tokens = self.long_ah
         self.model._orig_mod.total_num_tokens = (
             self.model._orig_mod.max_image_text_tokens
             + self.model._orig_mod.num_proprio_tokens
             + self.model._orig_mod.num_action_tokens
         )
-        self.model.horizon_steps = M_action_horizon
-        self.model.num_action_tokens = M_action_horizon
+        self.model.horizon_steps = self.long_ah
+        self.model.num_action_tokens = self.long_ah
         self.model.total_num_tokens = (
             self.model.max_image_text_tokens
             + self.model.num_proprio_tokens
@@ -58,8 +57,7 @@ class PiZeroContrastInference(PiZeroInference):
        
         # actions = self.forward_actions(inputs)
         # contrast_actions = self.forward_actions(contrast_inputs)
-        M_actions = self.M_action_horizon_forward_actions(M_inputs, M_action_horizon=M_action_horizon)
-
+        M_actions = self.M_action_horizon_forward_actions(M_inputs)
 
         best_smooth_action, _, _ = smoothest_delta_action(M_actions)
 
@@ -72,7 +70,7 @@ class PiZeroContrastInference(PiZeroInference):
 
 
     @torch.no_grad()
-    def knn_de_step(self, image, contrast_image, instruction, proprio):
+    def best_of_N_grounding_step(self, image, contrast_image, instruction, proprio):
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
        
@@ -129,16 +127,16 @@ class PiZeroContrastInference(PiZeroInference):
 
 
     @torch.no_grad()
-    def knn_topK_motion_step(self, image, contrast_image, instruction, proprio, M_action_horizon):
-        self.model._orig_mod.horizon_steps = M_action_horizon
-        self.model._orig_mod.num_action_tokens = M_action_horizon
+    def best_of_N_grounding_and_smooth_step(self, image, contrast_image, instruction, proprio):
+        self.model._orig_mod.horizon_steps = self.long_ah
+        self.model._orig_mod.num_action_tokens = self.long_ah
         self.model._orig_mod.total_num_tokens = (
             self.model._orig_mod.max_image_text_tokens
             + self.model._orig_mod.num_proprio_tokens
             + self.model._orig_mod.num_action_tokens
         )
-        self.model.horizon_steps = M_action_horizon
-        self.model.num_action_tokens = M_action_horizon
+        self.model.horizon_steps = self.long_ah
+        self.model.num_action_tokens = self.long_ah
         self.model.total_num_tokens = (
             self.model.max_image_text_tokens
             + self.model.num_proprio_tokens
@@ -147,9 +145,6 @@ class PiZeroContrastInference(PiZeroInference):
 
         inputs = self.preprocess_inputs(image, instruction, proprio)
         contrast_inputs = self.preprocess_inputs(contrast_image, instruction, proprio)
-       
-        # actions = self.forward_actions(inputs)
-        # contrast_actions = self.forward_actions(contrast_inputs)
  
         all_inputs = {}
         for k in inputs:
@@ -218,9 +213,9 @@ class PiZeroContrastInference(PiZeroInference):
                 actions = self.model.infer_actions(**inputs)
         return actions
 
-    def M_action_horizon_forward_actions(self, inputs, M_action_horizon):
+    def M_action_horizon_forward_actions(self, inputs):
         inputs.update({'num_repeats': self.num_repeats})
-        inputs.update({'M_action_horizon': M_action_horizon})
+        inputs.update({'M_action_horizon': self.long_ah})
         with torch.inference_mode():
             if self.use_naive:
                 actions = self.model.infer_actions_naive(**inputs)
@@ -231,42 +226,6 @@ class PiZeroContrastInference(PiZeroInference):
 
 
 
-
-def jerk_smoothest_action(long_action):
-    """
-    long_action: torch.Tensor of shape (C, T, D)
-
-    Returns:
-        best_idx: int
-        best_action: (T, D)
-        jerk_rms: (C,)
-    """
-    assert long_action.ndim == 3
-    C, T, D = long_action.shape
-    assert T >= 4, "Need at least 4 timesteps to compute jerk"
-
-    # Normalize long_action
-    std = long_action.std(dim=(0,1), keepdim=True)
-    norm_long_action = long_action / (std + 1e-6)
-
-    # Compute jerk (C, T-3, D)
-    jerk = (
-        norm_long_action[:, 3:, :-1]
-        - 3 * norm_long_action[:, 2:-1, :-1]
-        + 3 * norm_long_action[:, 1:-2, :-1]
-        - norm_long_action[:, :-3, :-1]
-    )
-
-    # ||j||^2 over action dim → (C, T-3)
-    jerk_sq = (jerk ** 2).sum(dim=-1)
-    # mean over time → (C,)
-    jerk_mean = jerk_sq.mean(dim=1)
-    # RMS → (C,)
-    jerk_rms = torch.sqrt(jerk_mean + 1e-8)  # tránh nan
-    # best candidate
-    best_idx = torch.argmin(jerk_rms)
-    best_action = long_action[best_idx:best_idx+1]
-    return best_action, jerk_rms, best_idx
 
 def smoothest_delta_action(
     actions,

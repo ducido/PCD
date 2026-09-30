@@ -12,21 +12,6 @@ from utils import *
 from multiprocessing import Lock
 gpu_lock = Lock()
 
-import pandas as pd
-
-# đọc csv
-para_df = pd.read_csv("negative_para.csv")
-
-def paraphrase_instruction(instruction, task):
-    row = para_df[
-        (para_df["task"] == task) &
-        (para_df["instruction"] == instruction)
-    ]
-    # lấy paraphrased
-    if row.empty:
-        print(f"instruction: {instruction} not found in paraphrased dataset")
-    new_instruction = row.iloc[0]["paraphrased_instruction"]
-    return new_instruction
 
 
 
@@ -65,18 +50,8 @@ class ParallelRunner:
                  task='',
                  result_root='./results',
                  n_trajs=100,
-                 contrast=False,
-                 ag=False,
-                 ag_no_cd=False,
-                 cd_in_ag=False,
-                 cd_knn=False,
-                 negative_prompt_pcd=False,
-                 negative_prompt_knn=False,
-                 negative_prompt_knn_and_inpainting=False,
-                 negative_prompt_knn_plus_inpainting=False,
-                 masking_state=False,
-                 M_action_horizon=False,
-                 knn_topK_motion=False,
+                 algo=None,
+                 negative_mode=None,
                  opts=[]):
         self.num_gpus = num_gpus
         self.policy = policy
@@ -84,18 +59,8 @@ class ParallelRunner:
         self.task = task
         self.result_root = result_root
         self.n_trajs = n_trajs
-        self.contrast = contrast
-        self.ag = ag
-        self.ag_no_cd = ag_no_cd
-        self.cd_in_ag = cd_in_ag
-        self.cd_knn = cd_knn
-        self.negative_prompt_pcd = negative_prompt_pcd
-        self.negative_prompt_knn = negative_prompt_knn
-        self.negative_prompt_knn_and_inpainting = negative_prompt_knn_and_inpainting
-        self.negative_prompt_knn_plus_inpainting = negative_prompt_knn_plus_inpainting
-        self.masking_state = masking_state
-        self.M_action_horizon = M_action_horizon
-        self.knn_topK_motion = knn_topK_motion
+        self.algo = algo
+        self.negative_mode = negative_mode
         self.opts = parse_opts(opts)
         
     def run(self):
@@ -242,75 +207,33 @@ class ParallelRunner:
         # get initial image
         image = get_image_from_maniskill2_obs_dict(env, obs)  # np.ndarray of shape (H, W, 3), uint8
         
-        if not self.contrast:
+        if not self.algo:
             frames.append(image)
         else:
-            if self.negative_prompt_pcd or self.negative_prompt_knn or self.masking_state:
-                frames.append(tile_images([image, image]))
-            else:
-                contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger,  is_inpaint=False)
-                frames.append(tile_images([image, contrast_image]))          
+            contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger,  negative_mode=self.negative_mode)
+            frames.append(tile_images([image, contrast_image]))          
         
         # run episode
         while not (predicted_terminated or truncated):
             # get action from policy
             # only pi-0 use proprio
-            if not self.contrast:
+            if not self.algo:
                 self.logger.info("Using standard policy")
                 raw_action, actions = policy.step(image, instruction, proprio=obs['agent']['eef_pos'])
             else:
-                if self.ag and self.cd_knn:
-                    self.logger.info("Using AutoGuidance with k-NN")
-                    # raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                    raise "not implement yet"
-                if self.ag and self.ag_no_cd:
-                    self.logger.info("Using AutoGuidance without CD")
-                    raw_action, actions, aux_info = policy.ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.ag and self.cd_in_ag:
-                    self.logger.info("Using CD inside AutoGuidance")
-                    raw_action, actions, aux_info = policy.contrast_in_ag_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.ag:
-                    self.logger.info("Using AutoGuidance parallel with CD")
-                    raw_action, actions, aux_info = policy.ag_contrast_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.cd_knn:
-                    self.logger.info("Using CD with KNN density estimation")
-                    raw_action, actions, aux_info = policy.knn_de_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.negative_prompt_pcd:
-                    negative_prompt = 'do nothing, just stand still'
-                    self.logger.info(f"Using negative prompt PCD: {negative_prompt}")
-                    raw_action, actions, aux_info = policy.negative_prompt_pcd_step(image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.negative_prompt_knn:
-                    negative_prompt = 'do nothing, just stand still'
-                    self.logger.info(f"Using negative prompt KNN: {negative_prompt}")
-                    raw_action, actions, aux_info = policy.negative_prompt_knn_de_step(image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.negative_prompt_knn_and_inpainting:
-                    negative_prompt = "do nothing, just stand still"
-                    self.logger.info(f"Using negative prompt knn AND inpainting: {negative_prompt}")
-                    raw_action, actions, aux_info = policy.negative_prompt_and_inpainting_knn_step(image, contrast_image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.negative_prompt_knn_plus_inpainting:
-                    negative_prompt = "do nothing, just stand still"
-                    self.logger.info(f"Using negative prompt knn PLUS inpainting: {negative_prompt}")
-                    raw_action, actions, aux_info = policy.negative_prompt_plus_inpainting_knn_step(image, contrast_image, negative_prompt, instruction, proprio=obs['agent']['eef_pos'])
-                elif self.masking_state:
-                    self.logger.info("negative signal by Masking State")
-                    proprio = obs['agent']['eef_pos']
-                    contrast_proprio = torch.zeros_like(torch.tensor(proprio))
-                    # contrast_proprio = torch.randn_like(torch.tensor(proprio))
-                    raw_action, actions, aux_info = policy.masking_state_knn_step(image, instruction, proprio=proprio, contrast_proprio=contrast_proprio)
-                elif self.M_action_horizon and self.knn_topK_motion:
-                    # breakpoint()
+                if self.algo == 'grounding_smooth':
                     self.logger.info(f"KNN top-K Long-term motion with M action horizon {self.M_action_horizon}")
-                    raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction=instruction, proprio=obs['agent']['eef_pos'], M_action_horizon=self.M_action_horizon)
-                elif self.M_action_horizon:
-                    # breakpoint()
+                    raw_action, actions, aux_info = policy.best_of_N_grounding_and_smooth_step(image, contrast_image, instruction=instruction, proprio=obs['agent']['eef_pos'])
+                elif self.algo == 'grounding':
+                    self.logger.info("Using CD with KNN density estimation")
+                    raw_action, actions, aux_info = policy.base_best_of_N_grounding_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.algo == 'smooth':
                     self.logger.info("Baseline best of N smoothing based on M")
-                    raw_action, actions, aux_info = policy.base_best_of_N_smooth_step(image, instruction, proprio=obs['agent']['eef_pos'], M_action_horizon=self.M_action_horizon)
-                elif self.knn_topK_motion:
-                    self.logger.info("Using CD with KNN top-K motion selection")
-                    raw_action, actions, aux_info = policy.knn_topK_motion_step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
-                else:
-                    self.logger.info("Using only CD")
-                    raw_action, actions, aux_info = policy.step(image, contrast_image, instruction, proprio=obs['agent']['eef_pos'])
+                    raw_action, actions, aux_info = policy.base_best_of_N_smooth_step(image, instruction, proprio=obs['agent']['eef_pos'])
+                elif self.algo == 'base_zeros_masking':
+                    pass
+                elif self.algo == 'base_inpainting':
+                    pass
 
             if not isinstance(actions, list):
                 actions = [actions]
@@ -327,8 +250,8 @@ class ParallelRunner:
                 else:
                     if self.negative_prompt_pcd or self.negative_prompt_knn or self.masking_state:
                         frames.append(tile_images([image, image]))
-                    else:
-                        contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, is_inpaint=False)
+                    else:   
+                        contrast_image = self.contrast_image_generator.generate(obs, instruction, logging=self.logger, negative_mode=self.negative_mode)
                         frames.append(tile_images([image, contrast_image]))          
         
                     # write_images([image, contrast_image], f"visualize/test.jpg")
@@ -402,7 +325,7 @@ class ParallelRunner:
     def _build_policy(self, show_detail=False):
         """ Build policy model. """
         from properties import get_policy_config
-        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.contrast, self.ag, self.cd_knn, self.negative_prompt_knn, self.negative_prompt_knn_and_inpainting, self.negative_prompt_knn_plus_inpainting, self.masking_state, self.knn_topK_motion)
+        config = get_policy_config(self.policy, self.checkpoint, self.task, self.opts, self.algo)
         if show_detail:
             self.logger.infos("Policy Config", config)
 
@@ -517,18 +440,8 @@ def main(args):
                                       task=args.task,
                                       result_root=args.result_root,
                                       n_trajs=args.n_trajs,
-                                      contrast=args.contrast,
-                                      ag=args.ag,
-                                      ag_no_cd=args.ag_no_cd,
-                                      cd_in_ag=args.cd_in_ag,
-                                      cd_knn=args.cd_knn,
-                                      negative_prompt_pcd=args.negative_prompt_pcd,
-                                      negative_prompt_knn=args.negative_prompt_knn,
-                                      negative_prompt_knn_and_inpainting=args.negative_prompt_knn_and_inpainting,
-                                      negative_prompt_knn_plus_inpainting=args.negative_prompt_knn_plus_inpainting,
-                                      masking_state=args.masking_state,
-                                      M_action_horizon=args.M_action_horizon,
-                                      knn_topK_motion=args.knn_topK_motion,
+                                      algo=self.algo,
+                                      negative_mode=self.negative_mode,
                                       opts=args.opts)
     else:
         runner = ParallelRunner(num_gpus=args.num_gpus,
@@ -537,18 +450,8 @@ def main(args):
                                 task=args.task,
                                 result_root=args.result_root,
                                 n_trajs=args.n_trajs,
-                                contrast=args.contrast,
-                                ag=args.ag,
-                                ag_no_cd=args.ag_no_cd,
-                                cd_in_ag=args.cd_in_ag,
-                                cd_knn=args.cd_knn,
-                                negative_prompt_pcd=args.negative_prompt_pcd,
-                                negative_prompt_knn=args.negative_prompt_knn,
-                                negative_prompt_knn_and_inpainting=args.negative_prompt_knn_and_inpainting,
-                                negative_prompt_knn_plus_inpainting=args.negative_prompt_knn_plus_inpainting,
-                                masking_state=args.masking_state,
-                                M_action_horizon=args.M_action_horizon,
-                                knn_topK_motion=args.knn_topK_motion,
+                                algo=self.algo,
+                                negative_mode=self.negative_mode,
                                 opts=args.opts)
     runner.run()
 
@@ -561,18 +464,8 @@ if __name__ == '__main__':
     parser.add_argument("--task", default="google_robot_pick_coke_can")
     parser.add_argument("--result-root", type=str, default="./results")
     parser.add_argument("--n-trajs", type=int, default=100)
-    parser.add_argument("--contrast", action="store_true")
-    parser.add_argument("--ag", action="store_true")
-    parser.add_argument("--ag-no-cd", action="store_true")
-    parser.add_argument("--cd-in-ag", action="store_true")
-    parser.add_argument("--cd-knn", action="store_true")
-    parser.add_argument("--negative-prompt-pcd", action="store_true")
-    parser.add_argument("--negative-prompt-knn", action="store_true")
-    parser.add_argument("--negative-prompt-knn-and-inpainting", action="store_true")
-    parser.add_argument("--negative-prompt-knn-plus-inpainting", action="store_true")
-    parser.add_argument("--masking-state", action="store_true")
-    parser.add_argument("--M-action-horizon", type=int, default=None)
-    parser.add_argument("--knn-topK-motion", action="store_true")
+    parser.add_argument("--algo", type=str, default="grounding")
+    parser.add_argument("--negative-mode", type=str, default="zeros_masking")
     parser.add_argument("--opts", nargs="+", default=[])
     parser.add_argument("--search-opts", nargs="+", default=[])
     args = parser.parse_args()
