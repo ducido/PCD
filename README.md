@@ -1,97 +1,125 @@
-# Policy Contrastive Decoding for Robotic Foundation Models
+# Selected Diffusion Noise (SDN)
 
-Official implementation of the paper "[Policy Contrastive Decoding for Robotic Foundation Models](https://arxiv.org/abs/2505.13255)".
+Official implementation of **"Test-Time Improvement of VLA Policies via Selected Diffusion Noise for Spurious-Robust Action Smoothing"**.
 
-> **Note**: We are doing our best to improve this work. If you have any questions or suggestions, please feel free to create an issue in this repo or contact us at shihan.wu.koorye@outlook.com.
+SDN is a training-free, test-time action-selection method for diffusion / flow-matching VLA policies.
+At every step it samples several candidate action chunks from different initial noises and selects one in two stages:
 
-[[Project]](https://koorye.github.io/PCD) [[ArXiv]](https://arxiv.org/abs/2505.13255) [[PDF]](https://arxiv.org/pdf/2505.13255) [[PCD-real]](https://github.com/Koorye/PCD-real) [[PCD-LeRobot]](https://github.com/Koorye/PCD-LeRobot)
+1. **Grounding filter.** It also samples a negative set from a counterfactual observation in which the task-relevant objects are masked out.
+   It then keeps the top-M candidates that lie in dense regions of the positive set and in sparse regions of the negative set (k-NN density ratio).
+2. **Kinematic refinement.** Among those M candidates, it executes the smoothest chunk.
 
-## News
-- 🔥**Jan, 26, 2026**: 🎉🎉Our paper has been accepted by **ICLR 2026**!🎉🎉
-- 🔥**Oct 13, 2025**: Our paper has been updated for better clarity and readability. The optimized version is now available on [arXiv](https://arxiv.org/abs/2505.13255).
-- 🔥**May 20, 2025**: The code is released and the paper is now available on [arXiv](https://arxiv.org/abs/2505.13255v1).
+This repository contains the π0 experiments on SIMPLER. The GR00T N1.5 / N1.6 experiments will be added under [`gr00t/`](gr00t/).
 
-## Introduction
+## Repository structure
 
-> **Abstract** Generalist robot policies, or robotic foundation models, hold immense potential to enable flexible, general-purpose and dexterous robotic systems. Despite their advancements, our empirical experiments reveal that existing robot policies are prone to learning spurious correlations from pre-training trajectories, adversely affecting their generalization capabilities during inference. To tackle this, we propose a novel **Policy Contrastive Decoding (PCD)** approach, which redirects the robot policy’s focus toward object-relevant visual clues by contrasting action probability distributions derived from original and object-masked visual inputs. As a training-free method, our PCD can be used as a *plugin* to improve different types of robot policies without needing to finetune or access model weights. We conduct extensive experiments on top of three open-source robot policies, including the autoregressive policy **OpenVLA** and the diffusion-based policies **Octo** and $\pi_0$. The obtained results in both simulation and real-world environments prove PCD’s flexibility and effectiveness, e.g., PCD enhances the state-of-the-art policy $\pi_0$ by **8%** in the simulation environment and by **108%** in the real-world environment.
-
-![Policy Contrastive Decoding](examples/method.png)
-
-## Experiments
-
-### Overall Performance
-
-**Simulated Environments**
-
-![Simpler Results](examples/simpler_results.png)
-
-**Real-world Environments**
-
-![Real-world Results](examples/real_results.png)
-
-### Performance on Different Factors
-
-![Factors](examples/factors.png)
-
-## Videos
-
-### Real-world Environments
-
-> **Note**: The relevant code of the real-world experiments is available in [PCD-real](https://github.com/Koorye/PCD-real).
-
-| Baseline: Pick Ball                                             | Baseline: Move Near                                                             | Baseline: Banana Plate                                                         | Baseline: Stack Cube                                                       |
-|:-------------------------------------------------------------------:|:---------------------------------------------------------------------:|:--------------------------------------------------------------------:|:----------------------------------------------------------------:|
-| ![Pick Ball](examples/videos/main/real/baseline/pick_ball.gif)      | ![Move Near](examples/videos/main/real/baseline/move_near.gif)        | ![Banana Plate](examples/videos/main/real/baseline/banana_plate.gif) | ![Stack Cube](examples/videos/main/real/baseline/stack_cube.gif) |
-| **+Ours: Pick Ball**                                                      | **+Ours: Move Near**                                                        | **+Ours: Banana Plate**                                                    | **+Ours: Stack Cube**                                                  |
-| ![Pick Ball](examples/videos/main/real/pcd/pick_ball.gif)      | ![Move Near](examples/videos/main/real/pcd/move_near.gif)        | ![Banana Plate](examples/videos/main/real/pcd/banana_plate.gif) | ![Stack Cube](examples/videos/main/real/pcd/stack_cube.gif) |
-| **Baseline: Distractors**                                                     | **Baseline: Spatial Relation**                                                  | **Baseline: Brightness**                                                       | **Baseline: Texture**                                                      |
-| ![Distractors](examples/videos/factor/real/baseline/distractor.gif) | ![Spatial Relation](examples/videos/factor/real/baseline/spatial.gif) | ![Brightness](examples/videos/factor/real/baseline/brightness.gif)   | ![Texture](examples/videos/factor/real/baseline/texture.gif)     |
-| **+Ours: Distractors**                                                | **+Ours: Spatial Relation**                                             | **+Ours: Brightness**                                                  | **+Ours: Texture**                                                 |
-| ![Distractors](examples/videos/factor/real/pcd/distractor.gif) | ![Spatial Relation](examples/videos/factor/real/pcd/spatial.gif) | ![Brightness](examples/videos/factor/real/pcd/brightness.gif)   | ![Texture](examples/videos/factor/real/pcd/texture.gif)     |
-
-### Simulated Environments
-
-| Baseline: Pick Coke Can                                                             | Baseline: Move Near                                                             | Baseline: Carrot Plate                                                            | Baseline: Eggplant Basket                                                          |
-|:-------------------------------------------------------------------------:|:---------------------------------------------------------------------:|:-----------------------------------------------------------------------:|:------------------------------------------------------------------------:|
-| ![Pick Coke Can](examples/videos/main/simpler/baseline/pick_coke_can.gif) | ![Move Near](examples/videos/main/simpler/baseline/move_near.gif)     | ![Carrot Plate](examples/videos/main/simpler/baseline/carrot_plate.gif) | ![Stack Cube](examples/videos/main/simpler/baseline/eggplant_basket.gif) |
-| **+Ours: Pick Coke Can**                                                            | **+Ours: Move Near**                                                            | **+Ours: Carrot Plate**                                                           | **+Our: Eggplant Basket**                                                         |
-| ![Pick Coke Can](examples/videos/main/simpler/pcd/cut_pick_coke_can.gif) | ![Move Near](examples/videos/main/simpler/pcd/cut_move_near.gif)     | ![Carrot Plate](examples/videos/main/simpler/pcd/cut_carrot_plate.gif) | ![Stack Cube](examples/videos/main/simpler/pcd/cut_eggplant_basket.gif) |
-| **Baseline: Spatial Relation**                                                      | **Baseline: Brightness**                                                        | **Baseline: Texture**                                                             | **Baseline: Texture**                                                              |
-| ![Spatial Relation](examples/videos/factor/simpler/baseline/spatial.gif)  | ![Brightness](examples/videos/factor/simpler/baseline/brightness.gif) | ![Texture](examples/videos/factor/simpler/baseline/texture.gif)         | ![Distractors](examples/videos/factor/simpler/baseline/texture2.gif)     |
-| **+Ours: Spatial Relation**                                                     | **+Ours: Brightness**                                                       | **+Ours: Texture**                                                            | **+Ours: Texture**                                                             |
-| ![Spatial Relation](examples/videos/factor/simpler/pcd/cut_spatial.gif)  | ![Brightness](examples/videos/factor/simpler/pcd/cut_brightness.gif) | ![Texture](examples/videos/factor/simpler/pcd/cut_texture.gif)         | ![Distractors](examples/videos/factor/simpler/pcd/cut_texture2.gif)     |
-
-## Running
-
-1. Clone this repository.
-
-```bash
-git clone https://github.com/Koorye/PCD.git
+```
+sdn/                       backbone-agnostic SDN core, shared by all backbones
+  selection.py             k-NN grounding score, smoothness score, two-stage selection
+  negatives/               negative observations: Grounding-DINO + SAM2 masks, zero-bbox / LaMa inpainting
+pizero/                    π0 on SIMPLER
+  sdn_policy.py            π0 wrapper that samples candidates and calls sdn.selection
+  config.py                default hyperparameters
+  evaluate.py              multi-GPU SIMPLER evaluation
+  scripts/                 run_sdn.sh (main results), run_ablations.sh (baselines / ablations)
+gr00t/                     GR00T integration (coming soon)
+simpler_env/               SIMPLER environments + open-pi-zero model code (vendored)
+third_party/               ManiSkill2_real2sim, Grounded-SAM-2, LaMa (vendored)
+tests/                     unit tests for sdn.selection
 ```
 
-2. Install all dependencies.
+## Installation
 
 ```bash
-conda create -n pcd python=3.10
-conda activate pcd
+conda create -n sdn python=3.10
+conda activate sdn
 bash scripts/install_dependencies.sh
 ```
 
-3. Download model checkpoints.
-
-> **Note**: Some of the checkpoints cannot be downloaded directly, you may need to download them manually from the links provided in the script.
+```bash
+huggingface-cli login
+```
 
 ```bash
 bash scripts/download_pretrained_weights.sh
 ```
 
-3. Run evaluation on simpler.
+`huggingface-cli login` is needed for the gated PaliGemma weights. LaMa weights (`pretrained/big-lama`) are only required for `negative_mode inpaint` and must be downloaded manually; see the script.
+
+## Running
+
+All commands are run from the repository root. Workers are launched on the GPUs listed in `CUDA_VISIBLE_DEVICES` (or all visible GPUs).
+
+Evaluate π0 + SDN on one task:
 
 ```bash
-bash scripts/default/inference/run.sh
+python -m pizero.evaluate --method sdn --task widowx_spoon_on_towel --num-gpus 4 --opts knn_k 6 top_m 3 long_horizon 4
 ```
+
+Reproduce the π0 tables:
+
+```bash
+bash pizero/scripts/run_sdn.sh 4
+```
+
+```bash
+bash pizero/scripts/run_ablations.sh 4
+```
+
+`run_sdn.sh` gives Table II. `run_ablations.sh` gives the vanilla / masked / inpainted / random-mask baselines (Tables IV, V), SDN with inpainting negatives (Table VII) and the single-stage ablations.
+
+Results are written to `<result-root>/<method>/<options>/<task>/`: one GIF per episode (original and negative view side by side) and `000_success_<rate>.log`.
+
+### Methods
+
+| `--method` | Description |
+|---|---|
+| `vanilla` | π0 on the original observation |
+| `vanilla_perturbed` | π0 on the perturbed observation (object masked, inpainted or randomly masked) |
+| `sdn` | full SDN (grounding filter + kinematic refinement) |
+| `sdn_grounding` | stage 1 only: execute the most grounded candidate |
+| `sdn_smooth` | stage 2 only: execute the smoothest candidate (no negative set) |
+
+### Options
+
+Pass options as `--opts key value ...`, or as a grid with `--search-opts key v1,v2 ...`. Unknown keys raise an error.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `num_samples` | 12 | N, candidates per observation (for both the positive and the negative set) |
+| `knn_k` | 6 | k of the k-NN grounding score |
+| `top_m` | 3 | M, candidates kept by the grounding filter |
+| `long_horizon` | `None` | length of the extended chunks scored by the smoothness stage (`None`: π0's chunk length, 4) |
+| `lambda_energy` | 0.05 | weight of the energy term in the smoothness score |
+| `ignore_gripper` | `True` | exclude the gripper dimension from the smoothness score |
+| `negative_mode` | `zeros_bbox` | `zeros_bbox`, `inpaint` (LaMa) or `random_zeros_bbox` (control) |
+| `by` | `grounded_sam_tracking` | object masks from Grounding-DINO + SAM2 tracking; `gt` uses simulator segmentation |
+| `bbox_pad` | 3 | padding (px) of the zeroed bounding box |
+
+## Using SDN with another backbone
+
+`sdn/selection.py` depends only on PyTorch. Given candidate chunks from the original observation, `actions` with shape `[N, T, D]`, and from the negative observation, `neg_actions` with shape `[C, T, D]`:
+
+```python
+from sdn.selection import sdn_select
+
+idx = sdn_select(actions, neg_actions, knn_k=6, top_m=3, grounding_horizon=exec_horizon)
+chunk_to_execute = actions[idx, :exec_horizon]
+```
+
+Run the unit tests with `python -m pytest tests/`.
 
 ## Acknowledgements
 
-Our work is built upon the following open-source projects: [SimplerEnv](https://github.com/simpler-env/SimplerEnv), [OpenVLA](https://github.com/openvla/openvla), [Octo](https://github.com/octo-models/octo), [Open Pi-0](https://github.com/allenzren/open-pi-zero), [Grounded SAM2](https://github.com/IDEA-Research/Grounded-SAM-2), [YOLO World](https://github.com/AILab-CVC/YOLO-World), [SED](https://github.com/xb534/SED), [Inpaint Anything](https://github.com/geekyutao/Inpaint-Anything).
-We thank the authors for releasing their code. If you use our model and code, please consider citing these works as well.
+This code builds on [Policy Contrastive Decoding (PCD)](https://github.com/Koorye/PCD), [SimplerEnv](https://github.com/simpler-env/SimplerEnv), [open-pi-zero](https://github.com/allenzren/open-pi-zero), [Grounded-SAM-2](https://github.com/IDEA-Research/Grounded-SAM-2) and [Inpaint-Anything / LaMa](https://github.com/geekyutao/Inpaint-Anything). We thank the authors for releasing their code.
+
+## Citation
+
+```bibtex
+@inproceedings{sdn2027,
+  title     = {Test-Time Improvement of VLA Policies via Selected Diffusion Noise for Spurious-Robust Action Smoothing},
+  author    = {Anonymous},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  year      = {2027}
+}
+```

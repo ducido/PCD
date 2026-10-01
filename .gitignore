@@ -1,70 +1,26 @@
-scripts/pcd_real_world/
-scripts/pcd_real_world_unseen/
-scripts/real_world_bak/
-results/
-results_bak/
-results_ft/
+# checkpoints, environments, outputs
 pretrained/
+.venv/
+results*/
+eval_logs/
 visualize/
 visualization/
-dataset/
 segmentation_results/
-*plot_simpler*
+dataset/
 *.mp4
+*.gif
+*.log
 
-# Byte-compiled / optimized / DLL files
+# local / unpublished
+scripts/_old_experiments/
+*.pdf
+.claude/
+
+# Python
 __pycache__/
 *.py[cod]
-
-# C extensions
 *.so
-
-# Distribution / packaging
-bin/
-build/
-develop-eggs/
-dist/
-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
-*.egg
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-.tox/
-.coverage
-.cache
-nosetests.xml
-coverage.xml
-
-# Translations
-*.mo
-
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
-
-# Rope
-.ropeproject
-
-# Django stuff:
-*.log
-*.pot
-
-# Sphinx documentation
-docs/_build/
-
-results*/
-bridge.yaml
-fractal.yaml
-scripts/
-*.pdf
+build/
+dist/
+.pytest_cache/

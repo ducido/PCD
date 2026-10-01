@@ -25,16 +25,6 @@ from src.utils.monitor import log_execution_time
 log = logging.getLogger(__name__)
 
 
-def split_repeat_concat(x, num_repeats):
-    assert x.size(0) == 2
-    # x: [2, ...] -> x1, x2
-    x1, x2 = torch.split(x, 1, dim=0)
-    # repeat only dim=0, x1 may be [1, ...]
-    num_dims = len(x1.shape)
-    x1 = x1.repeat(num_repeats, *[1] * (num_dims - 1))
-    x2 = x2.repeat(num_repeats, *[1] * (num_dims - 1))
-    return torch.cat([x1, x2], dim=0)
-
 def split_repeat_concat_general(x, num_repeats):
     # x: [N, ...]
     chunks = torch.split(x, 1, dim=0)
@@ -59,13 +49,7 @@ class PiZero(nn.Module, NoSyncBase):
 
         self.max_image_text_tokens = cfg.max_image_text_tokens
         self.num_proprio_tokens = cfg.cond_steps
-        self.horizon_steps = cfg.horizon_steps
-        self.num_action_tokens = self.horizon_steps
-        self.total_num_tokens = (
-            self.max_image_text_tokens
-            + self.num_proprio_tokens
-            + self.num_action_tokens
-        )
+        self.set_action_horizon(cfg.horizon_steps)
 
         self.image_text_hidden_size = cfg.mixture.vlm.hidden_size
         self.proprio_hidden_size = cfg.mixture.proprio.hidden_size
@@ -272,6 +256,16 @@ class PiZero(nn.Module, NoSyncBase):
         for name, param in self.joint_model.mixtures["vlm"].named_parameters():
             if self._check_gemma_unused_parameter_by_name(name):
                 param.requires_grad = False
+
+    def set_action_horizon(self, horizon_steps: int):
+        """Set the length of generated action chunks (and the matching token layout)."""
+        self.horizon_steps = horizon_steps
+        self.num_action_tokens = horizon_steps
+        self.total_num_tokens = (
+            self.max_image_text_tokens
+            + self.num_proprio_tokens
+            + self.num_action_tokens
+        )
 
     def freeze_all_weights(self):
         for _, param in self.named_parameters():
@@ -575,301 +569,6 @@ class PiZero(nn.Module, NoSyncBase):
         return action
 
 
-    def auto_guidance_infer_actions(
-        self,
-        input_ids: torch.LongTensor,
-        pixel_values: torch.FloatTensor,
-        image_text_proprio_mask: torch.FloatTensor,
-        action_mask: torch.FloatTensor,
-        vlm_position_ids: torch.LongTensor,
-        proprio_position_ids: torch.LongTensor,
-        action_position_ids: torch.LongTensor,
-        proprios: torch.FloatTensor,
-        num_repeats,
-        ag_weight
-    ) -> torch.FloatTensor:
-        dtype, device = pixel_values.dtype, pixel_values.device
-        bsz = pixel_values.size(0)
-        # assert bsz == 1
-        assert bsz == 2
-
-        kv_caches = self.joint_model.build_mixture_caches()
-
-        # merge the text tokens and the image tokens
-        inputs_embeds = self._forward_siglip_and_text_embedding(input_ids, pixel_values)
-
-        # proprio
-        proprio_embeds = self.proprio_encoder(proprios)
-
-        # inputs_embeds = inputs_embeds.repeat(num_repeats, 1, 1)
-        # proprio_embeds = proprio_embeds.repeat(num_repeats, 1, 1)
-        # image_text_proprio_mask = image_text_proprio_mask.repeat(num_repeats, 1, 1, 1)
-        # action_mask = action_mask.repeat(num_repeats, 1, 1, 1)
-        # vlm_position_ids = vlm_position_ids.repeat(num_repeats, 1)
-        # proprio_position_ids = proprio_position_ids.repeat(num_repeats, 1)
-        # action_position_ids = action_position_ids.repeat(num_repeats, 1)
-        inputs_embeds = split_repeat_concat(inputs_embeds, num_repeats)
-        proprio_embeds = split_repeat_concat(proprio_embeds, num_repeats)
-        image_text_proprio_mask = split_repeat_concat(image_text_proprio_mask, num_repeats)
-        action_mask = split_repeat_concat(action_mask, num_repeats)
-        vlm_position_ids = split_repeat_concat(vlm_position_ids, num_repeats)
-        proprio_position_ids = split_repeat_concat(proprio_position_ids, num_repeats)
-        action_position_ids = split_repeat_concat(action_position_ids, num_repeats)
-
-        # forward pass thru the vlm and proprio, cache the kv
-        _, kv_caches = self.joint_model(
-            attention_mask=image_text_proprio_mask,
-            position_ids_all={
-                "vlm": vlm_position_ids,
-                "proprio": proprio_position_ids,
-            },
-            embeds_all={
-                "vlm": inputs_embeds,
-                "proprio": proprio_embeds,
-            },
-            kv_caches=kv_caches,
-            return_caches=True,
-        )
-
-        # sample pure action noise
-        action = torch.randn((2 * num_repeats, self.horizon_steps, self.action_dim), device=device, dtype=dtype)
-
-        # forward euler integration --- using kv caches of vlm and proprio
-        delta_t = 1.0 / self.num_inference_steps
-        t = torch.zeros(2 * num_repeats, device=device, dtype=dtype)
-        for _ in range(self.num_inference_steps):
-            # encode action and time into embedding
-            time_cond = self.time_embedding(t)
-            # [Batch_Size, Horizon_Steps, Embed_Dim]
-            if self.action_expert_adaptive_mode:
-                action_embeds = self.action_encoder(action)
-            else:
-                action_embeds = self.action_encoder(action, time_cond)
-            # [Batch_Size, Horizon_Steps, Embed_Dim] 48,4,1024
-            action_embeds = self.joint_model(
-                attention_mask=action_mask,
-                position_ids_all={"action": action_position_ids},
-                embeds_all={"action": action_embeds},
-                time_cond=time_cond,
-                kv_caches=kv_caches,
-                cache_mode="append_non_active",  # use caches from other mixtures, i.e., vlm and proprio
-            )["action"]
-            # decode action: [Batch_Size, Horizon_Steps, Action_Dim] 48,4,7
-            action_vel = self.action_decoder(action_embeds)
-
-            ori_action_vel, contrast_action_vel = torch.chunk(action_vel, 2, dim=0)
-            # print(ag_weight)
-            ag_action_vel = ori_action_vel + ag_weight * (ori_action_vel - contrast_action_vel)
-            action_vel = torch.cat([ag_action_vel, contrast_action_vel], dim=0)
-            action += delta_t * action_vel
-            t += delta_t
-
-        # clamp final output if specified
-        if self.final_action_clip_value is not None:
-            action = torch.clamp(
-                action,
-                -self.final_action_clip_value,
-                self.final_action_clip_value,
-            )
-        return action
-
-
-    def cd_in_ag_infer_actions(
-        self,
-        input_ids: torch.LongTensor,
-        pixel_values: torch.FloatTensor,
-        image_text_proprio_mask: torch.FloatTensor,
-        action_mask: torch.FloatTensor,
-        vlm_position_ids: torch.LongTensor,
-        proprio_position_ids: torch.LongTensor,
-        action_position_ids: torch.LongTensor,
-        proprios: torch.FloatTensor,
-        num_repeats,
-        ag_weight,
-        cd_function,
-    ) -> torch.FloatTensor:
-        dtype, device = pixel_values.dtype, pixel_values.device
-        bsz = pixel_values.size(0)
-        # assert bsz == 1
-        assert bsz == 2
-
-        kv_caches = self.joint_model.build_mixture_caches()
-
-        # merge the text tokens and the image tokens
-        inputs_embeds = self._forward_siglip_and_text_embedding(input_ids, pixel_values)
-
-        # proprio
-        proprio_embeds = self.proprio_encoder(proprios)
-
-        # inputs_embeds = inputs_embeds.repeat(num_repeats, 1, 1)
-        # proprio_embeds = proprio_embeds.repeat(num_repeats, 1, 1)
-        # image_text_proprio_mask = image_text_proprio_mask.repeat(num_repeats, 1, 1, 1)
-        # action_mask = action_mask.repeat(num_repeats, 1, 1, 1)
-        # vlm_position_ids = vlm_position_ids.repeat(num_repeats, 1)
-        # proprio_position_ids = proprio_position_ids.repeat(num_repeats, 1)
-        # action_position_ids = action_position_ids.repeat(num_repeats, 1)
-        inputs_embeds = split_repeat_concat(inputs_embeds, num_repeats)
-        proprio_embeds = split_repeat_concat(proprio_embeds, num_repeats)
-        image_text_proprio_mask = split_repeat_concat(image_text_proprio_mask, num_repeats)
-        action_mask = split_repeat_concat(action_mask, num_repeats)
-        vlm_position_ids = split_repeat_concat(vlm_position_ids, num_repeats)
-        proprio_position_ids = split_repeat_concat(proprio_position_ids, num_repeats)
-        action_position_ids = split_repeat_concat(action_position_ids, num_repeats)
-
-        # forward pass thru the vlm and proprio, cache the kv
-        _, kv_caches = self.joint_model(
-            attention_mask=image_text_proprio_mask,
-            position_ids_all={
-                "vlm": vlm_position_ids,
-                "proprio": proprio_position_ids,
-            },
-            embeds_all={
-                "vlm": inputs_embeds,
-                "proprio": proprio_embeds,
-            },
-            kv_caches=kv_caches,
-            return_caches=True,
-        )
-
-        # sample pure action noise
-        action = torch.randn((2 * num_repeats, self.horizon_steps, self.action_dim), device=device, dtype=dtype)
-
-        # forward euler integration --- using kv caches of vlm and proprio
-        delta_t = 1.0 / self.num_inference_steps
-        t = torch.zeros(2 * num_repeats, device=device, dtype=dtype)
-        for _ in range(self.num_inference_steps):
-            # encode action and time into embedding
-            time_cond = self.time_embedding(t)
-            # [Batch_Size, Horizon_Steps, Embed_Dim]
-            if self.action_expert_adaptive_mode:
-                action_embeds = self.action_encoder(action)
-            else:
-                action_embeds = self.action_encoder(action, time_cond)
-            # [Batch_Size, Horizon_Steps, Embed_Dim]
-            action_embeds = self.joint_model(
-                attention_mask=action_mask,
-                position_ids_all={"action": action_position_ids},
-                embeds_all={"action": action_embeds},
-                time_cond=time_cond,
-                kv_caches=kv_caches,
-                cache_mode="append_non_active",  # use caches from other mixtures, i.e., vlm and proprio
-            )["action"]
-            # decode action: [Batch_Size, Horizon_Steps, Action_Dim]
-            action_vel = self.action_decoder(action_embeds)
-            action += delta_t * action_vel
-
-            #######
-            ori_actions, contrast_actions = torch.chunk(action, 2, dim=0) # num_repeats, 4, 7
-            cd_actions = cd_function.decode_torch_no_sample(ori_actions, contrast_actions) # 1, 4, 7
-            action = torch.cat([cd_actions, contrast_actions], dim=0)
-            #######
-            t += delta_t
-
-        # clamp final output if specified
-        if self.final_action_clip_value is not None:
-            action = torch.clamp(
-                action,
-                -self.final_action_clip_value,
-                self.final_action_clip_value,
-            )
-        return action
-
-
-    def M_action_horizon_infer_actions(
-        self,
-        input_ids: torch.LongTensor,
-        pixel_values: torch.FloatTensor,
-        image_text_proprio_mask: torch.FloatTensor,
-        action_mask: torch.FloatTensor,
-        vlm_position_ids: torch.LongTensor,
-        proprio_position_ids: torch.LongTensor,
-        action_position_ids: torch.LongTensor,
-        proprios: torch.FloatTensor,
-        num_repeats,
-        M_action_horizon,
-    ) -> torch.FloatTensor:
-        dtype, device = pixel_values.dtype, pixel_values.device
-        bsz = pixel_values.size(0)
-
-        # assert bsz == 1
-        # assert bsz == 2
-
-        kv_caches = self.joint_model.build_mixture_caches()
-
-        # merge the text tokens and the image tokens
-        inputs_embeds = self._forward_siglip_and_text_embedding(input_ids, pixel_values)
-
-        # proprio
-        proprio_embeds = self.proprio_encoder(proprios)
-
-        # inputs_embeds = inputs_embeds.repeat(num_repeats, 1, 1)
-        # proprio_embeds = proprio_embeds.repeat(num_repeats, 1, 1)
-        # image_text_proprio_mask = image_text_proprio_mask.repeat(num_repeats, 1, 1, 1)
-        # action_mask = action_mask.repeat(num_repeats, 1, 1, 1)
-        # vlm_position_ids = vlm_position_ids.repeat(num_repeats, 1)
-        # proprio_position_ids = proprio_position_ids.repeat(num_repeats, 1)
-        # action_position_ids = action_position_ids.repeat(num_repeats, 1)
-        inputs_embeds = split_repeat_concat_general(inputs_embeds, num_repeats)
-        proprio_embeds = split_repeat_concat_general(proprio_embeds, num_repeats)
-        image_text_proprio_mask = split_repeat_concat_general(image_text_proprio_mask, num_repeats)
-        action_mask = split_repeat_concat_general(action_mask, num_repeats)
-        vlm_position_ids = split_repeat_concat_general(vlm_position_ids, num_repeats)
-        proprio_position_ids = split_repeat_concat_general(proprio_position_ids, num_repeats)
-        action_position_ids = split_repeat_concat_general(action_position_ids, num_repeats)
-
-        # forward pass thru the vlm and proprio, cache the kv
-        _, kv_caches = self.joint_model(
-            attention_mask=image_text_proprio_mask,
-            position_ids_all={
-                "vlm": vlm_position_ids,
-                "proprio": proprio_position_ids,
-            },
-            embeds_all={
-                "vlm": inputs_embeds,
-                "proprio": proprio_embeds,
-            },
-            kv_caches=kv_caches,
-            return_caches=True,
-        )
-
-        # sample pure action noise
-
-        action = torch.randn((bsz * num_repeats, M_action_horizon, self.action_dim), device=device, dtype=dtype)
-
-        # forward euler integration --- using kv caches of vlm and proprio
-        delta_t = 1.0 / self.num_inference_steps
-        t = torch.zeros(bsz * num_repeats, device=device, dtype=dtype)
-        for _ in range(self.num_inference_steps):
-            # encode action and time into embedding
-            time_cond = self.time_embedding(t)
-            # [Batch_Size, Horizon_Steps, Embed_Dim]
-            if self.action_expert_adaptive_mode:
-                action_embeds = self.action_encoder(action)
-            else:
-                action_embeds = self.action_encoder(action, time_cond)
-            # [Batch_Size, Horizon_Steps, Embed_Dim]
-            action_embeds = self.joint_model(
-                attention_mask=action_mask,
-                position_ids_all={"action": action_position_ids},
-                embeds_all={"action": action_embeds},
-                time_cond=time_cond,
-                kv_caches=kv_caches,
-                cache_mode="append_non_active",  # use caches from other mixtures, i.e., vlm and proprio
-            )["action"]
-            # decode action: [Batch_Size, Horizon_Steps, Action_Dim]
-            action_vel = self.action_decoder(action_embeds)
-            action += delta_t * action_vel
-            t += delta_t
-
-        # clamp final output if specified
-        if self.final_action_clip_value is not None:
-            action = torch.clamp(
-                action,
-                -self.final_action_clip_value,
-                self.final_action_clip_value,
-            )
-        return action
-
     def infer_actions(
         self,
         input_ids: torch.LongTensor,
@@ -882,10 +581,13 @@ class PiZero(nn.Module, NoSyncBase):
         proprios: torch.FloatTensor,
         num_repeats,
     ) -> torch.FloatTensor:
+        """Sample `num_repeats` action chunks per batch element from independent noise.
+
+        Returns [bsz * num_repeats, horizon_steps, action_dim]; samples of batch element b
+        occupy rows [b * num_repeats, (b + 1) * num_repeats).
+        """
         dtype, device = pixel_values.dtype, pixel_values.device
         bsz = pixel_values.size(0)
-        # assert bsz == 1
-        # assert bsz == 2
 
         kv_caches = self.joint_model.build_mixture_caches()
 
@@ -895,13 +597,6 @@ class PiZero(nn.Module, NoSyncBase):
         # proprio
         proprio_embeds = self.proprio_encoder(proprios)
 
-        # inputs_embeds = inputs_embeds.repeat(num_repeats, 1, 1)
-        # proprio_embeds = proprio_embeds.repeat(num_repeats, 1, 1)
-        # image_text_proprio_mask = image_text_proprio_mask.repeat(num_repeats, 1, 1, 1)
-        # action_mask = action_mask.repeat(num_repeats, 1, 1, 1)
-        # vlm_position_ids = vlm_position_ids.repeat(num_repeats, 1)
-        # proprio_position_ids = proprio_position_ids.repeat(num_repeats, 1)
-        # action_position_ids = action_position_ids.repeat(num_repeats, 1)
         inputs_embeds = split_repeat_concat_general(inputs_embeds, num_repeats)
         proprio_embeds = split_repeat_concat_general(proprio_embeds, num_repeats)
         image_text_proprio_mask = split_repeat_concat_general(image_text_proprio_mask, num_repeats)

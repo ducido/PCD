@@ -10,6 +10,20 @@ from src.model.vla.pizero import PiZero
 
 from .. import setup_torch_seed
 
+REPO_ROOT = osp.abspath(osp.join(osp.dirname(__file__), '..', '..', '..'))
+_CHECKPOINTS = {
+    ('widowx_bridge', 'beta'): 'bridge_beta_step19296_2024-12-26_22-30_42.pt',
+    ('widowx_bridge', 'uniform'): 'bridge_uniform_step19296_2024-12-26_22-31_42.pt',
+    ('google_robot', 'beta'): 'fractal_beta_step29576_2024-12-29_13-10_42.pt',
+    ('google_robot', 'uniform'): 'fractal_uniform_step29576_2024-12-31_22-26_42.pt',
+}
+_CONFIGS = {'widowx_bridge': 'bridge.yaml', 'google_robot': 'fractal.yaml'}
+
+
+def resolve_path(path):
+    """Resolve a path relative to the repository root (absolute paths are unchanged)."""
+    return path if osp.isabs(path) else osp.join(REPO_ROOT, path)
+
 
 def load_checkpoint(model, path):
     """load to cpu first, then move to gpu"""
@@ -30,25 +44,15 @@ class PiZeroInference:
                  use_torch_compile=False,
                  seed=0):
         self.use_naive = use_naive
-        
-        if policy_setup == "widowx_bridge":
-            cfg = OmegaConf.load(osp.join(cfg_dir, 'bridge.yaml'))
-            if flow_sampling == 'beta':
-                checkpoint_path = osp.join(checkpoint_path, 'bridge_beta_step19296_2024-12-26_22-30_42.pt')
-            elif flow_sampling == 'uniform':
-                checkpoint_path = osp.join(checkpoint_path, 'bridge_uniform_step19296_2024-12-26_22-31_42.pt')
-            else:
-                raise ValueError(f"Invalid flow_sampling: {flow_sampling}")
-            
-        elif policy_setup == "google_robot":
-            cfg = OmegaConf.load(osp.join(cfg_dir, 'fractal.yaml'))
-            if flow_sampling == 'beta':
-                checkpoint_path = osp.join(checkpoint_path, 'fractal_beta_step29576_2024-12-29_13-10_42.pt')
-            elif flow_sampling == 'uniform':
-                checkpoint_path = osp.join(checkpoint_path, 'fractal_uniform_step29576_2024-12-31_22-26_42.pt')
-            else:
-                raise ValueError(f"Invalid flow_sampling: {flow_sampling}")
-        
+
+        if (policy_setup, flow_sampling) not in _CHECKPOINTS:
+            raise ValueError(f"Unsupported policy_setup={policy_setup} / flow_sampling={flow_sampling}")
+        cfg = OmegaConf.load(osp.join(resolve_path(cfg_dir), _CONFIGS[policy_setup]))
+        checkpoint_path = osp.join(resolve_path(checkpoint_path), _CHECKPOINTS[(policy_setup, flow_sampling)])
+        adapter_cfg = cfg.env.adapter
+        adapter_cfg.dataset_statistics_path = resolve_path(adapter_cfg.dataset_statistics_path)
+        adapter_cfg.pretrained_model_path = resolve_path(adapter_cfg.pretrained_model_path)
+
         cfg.flow_sampling = flow_sampling
         self.dtype = torch.bfloat16
         self.device = torch.device('cuda')
@@ -58,6 +62,7 @@ class PiZeroInference:
         self.model.to(self.dtype)
         self.model.to(self.device)
         
+        self.base_model = self.model  # un-compiled module, for changing attributes
         if use_torch_compile:
             self.model = torch.compile(self.model, mode='default')
         self.model.eval()

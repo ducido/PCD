@@ -33,6 +33,9 @@ imgui.ini
 # but can be excluded explicitly
 tmp/
 /data/*
+!/data/custom/
+!/data/hab2_bench_assets/
+!/data/real_inpainting/
 demos/
 videos/
 
